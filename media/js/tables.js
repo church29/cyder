@@ -28,13 +28,19 @@ function enableEditableGrid() {
         can be validated and the object can be updated.
         */
         var postData = {};
-        postData[editableGrid.getColumnName(columnIndex)] = newValue;
-
-        $.post($(row).attr('data-url'), postData, function(resp) {
-            if (resp && resp.error) {
-                $(row).after($('<tr></tr>').html(resp.error[0]));
-            }
-        }, 'json');
+        if (confirm("Are you sure you want to change " +
+                editableGrid.getColumnName(columnIndex) + " from " + oldValue +
+                " to " + newValue + "?")) {
+            postData[editableGrid.getColumnName(columnIndex)] = newValue;
+            $.post($(row).attr('data-url'), postData, function(resp) {
+                if (resp && resp.error) {
+                    $(row).after($('<tr></tr>').html(resp.error[0]));
+                }
+            }, 'json');
+        } else {
+            editableGrid.setValueAt(rowIndex, columnIndex, oldValue, true);
+            newValue = oldValue;
+        };
     };
     editableGrid.attachToHTMLTable('egtable');
     editableGrid.renderGrid();
