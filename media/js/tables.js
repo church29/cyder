@@ -23,8 +23,17 @@ function enableBatchUpdate() {
     });
     $('#egtable').find('thead').find('tr:last').append('<th>select <input type="checkbox" id="selectAll" /></th>');
     $('#egtable').find('tbody').find('tr').each(function (i, tr) {
-        var $tr = $(tr);
-        $tr.append('<th><input type="checkbox" name="interfaceCheck" /></th>');
+        var $id = $(tr).attr('data-url').split('/')[3];
+        $(tr).append('<td><input type="checkbox" id="' + $id + '" name="interfaceCheck" /></td>');
+    });
+    $('#createInterface').text('Update Interfaces');
+    $('#createInterface').attr('href', '#');
+
+    $('#createInterface').click(function () {
+        $('#batch-form').slideToggle();
+    });
+    $('#batch-cancel').click(function () {
+        $('#batch-form').slideToggle();
     });
     $('#selectAll').change(function() {
         var $all = $(this).attr('checked');
@@ -32,6 +41,26 @@ function enableBatchUpdate() {
             $(this).attr('checked', $all);
         });
     });
+    $('#batch-submit').click(function (e) {
+        e.preventDefault();
+        var interfaces = "";
+        $('input[name=interfaceCheck]').each(function (i, tr) {
+            if ($(this).attr('checked')) {
+                interfaces += this.id + ', ';
+            }
+        });
+        range_id = $('#id_range :selected').val();
+        var postData = {
+            interfaces: interfaces,
+            range: range_id,
+        }
+        $.post("/dhcp/interface/batch_update/", postData, function(data) {
+        alert('yup');
+        }, 'json');
+
+
+    });
+
 
 
 }

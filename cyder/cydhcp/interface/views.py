@@ -19,3 +19,8 @@ def interface_delete(request):
             return HttpResponse(json.dumps({'last': True}))
     else:
         return HttpResponse(json.dumps({'last': False}))
+
+
+def batch_update(request):
+    if request.POST:
+        print request.POST

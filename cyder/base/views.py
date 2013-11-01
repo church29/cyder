@@ -137,7 +137,7 @@ def cy_view(request, get_klasses_fn, template, pk=None, obj_type=None):
     """List, create, update view in one for a flatter heirarchy. """
     # Infer obj_type from URL, saves trouble of having to specify
     obj_type = obj_type or request.path.split('/')[2]
-
+    batchInterfaceForm = None
     Klass, FormKlass, FQDNFormKlass = get_klasses_fn(obj_type)
     obj = get_object_or_404(Klass, pk=pk) if pk else None
     form = FormKlass(instance=obj)
@@ -184,6 +184,8 @@ def cy_view(request, get_klasses_fn, template, pk=None, obj_type=None):
     if Klass.__name__ in [
             "StaticInterface", "DynamicInterface"] and pk is None:
         form.fields['system'].widget = forms.HiddenInput()
+        from cyder.cydhcp.interface.forms import BatchInterfaceForm
+        batchInterfaceForm = BatchInterfaceForm()
 
     return render(request, template, {
         'form': form,
@@ -192,6 +194,7 @@ def cy_view(request, get_klasses_fn, template, pk=None, obj_type=None):
         'object_table': tablefy(page_obj, request=request),
         'obj_type': obj_type,
         'pk': pk,
+        'batchInterfaceForm': batchInterfaceForm,
     })
 
 
