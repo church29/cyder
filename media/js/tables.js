@@ -46,16 +46,29 @@ function enableBatchUpdate() {
         var interfaces = "";
         $('input[name=interfaceCheck]').each(function (i, tr) {
             if ($(this).attr('checked')) {
-                interfaces += this.id + ', ';
+                interfaces += this.id + ',';
             }
         });
-        range_id = $('#id_range :selected').val();
+        interfaces = interfaces.slice(0,-1);
+
+        interface_type = $('#title').text();
+        form = $('#batch-hidden-inner-form');
+        range_id = form.find('#id_range').val();
         var postData = {
             interfaces: interfaces,
+            interface_type: interface_type,
             range: range_id,
         }
         $.post("/dhcp/interface/batch_update/", postData, function(data) {
-        alert('yup');
+        if (data.success) {
+            location.reload();
+        };
+        if (data.error) {
+            if (form.find('#error').length) {
+                form.find('#error').remove();
+            };
+            form.append('<p id="error"><font color="red">' + data.error + '</font></p>');
+        };
         }, 'json');
 
 
