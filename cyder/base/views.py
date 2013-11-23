@@ -191,7 +191,7 @@ def cy_view(request, get_klasses_fn, template, pk=None, obj_type=None):
 
     if Klass.__name__ in [
             "StaticInterface", "DynamicInterface"] and pk is None:
-        form.fields['system'].widget = forms.HiddenInput()
+        form = None
 
     return render(request, template, {
         'form': form,
