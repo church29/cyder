@@ -3,11 +3,11 @@ from gettext import gettext as _
 from django.db import models
 from django.core.exceptions import ValidationError
 
-import cydns
 from cyder.cydns.cname.models import CNAME
 from cyder.cydns.ip.models import Ip
 from cyder.cydns.models import CydnsRecord, LabelDomainMixin
 from cyder.base.constants import IP_TYPE_6, IP_TYPE_4
+from cyder.cydhcp.range.utils import find_range
 
 
 class BaseAddressRecord(Ip, LabelDomainMixin, CydnsRecord):
@@ -73,7 +73,6 @@ class BaseAddressRecord(Ip, LabelDomainMixin, CydnsRecord):
                 raise ValidationError(
                     "A CNAME points to this {0} record. Change the CNAME "
                     "before deleting this record.".format(self.record_type()))
-
         super(BaseAddressRecord, self).delete(*args, **kwargs)
 
     def check_intr_collision(self):
@@ -117,7 +116,7 @@ class BaseAddressRecord(Ip, LabelDomainMixin, CydnsRecord):
         if db_self.label == self.label and db_self.domain == self.domain:
             return
         # The label of the domain changed. Make sure it's not a glue record
-        Nameserver = cydns.nameserver.models.Nameserver
+        from cyder.cydns.nameserver.models import Nameserver
         if Nameserver.objects.filter(addr_glue=self).exists():
             raise ValidationError(
                 "This record is a glue record for a Nameserver. Change the "
@@ -146,6 +145,7 @@ class AddressRecord(BaseAddressRecord):
                  "{rdtype:$rdtype_just} {ip_str:$rhs_just}")
 
     class Meta:
+        app_label = 'cyder'
         db_table = "address_record"
         unique_together = ("label", "domain", "fqdn", "ip_upper", "ip_lower",
                            "ip_type")
@@ -160,3 +160,17 @@ class AddressRecord(BaseAddressRecord):
             ('IP', 'ip_str', str(self.ip_str)),
         ]
         return data
+
+    def save(self, *args, **kwargs):
+        update_range_usage = kwargs.pop('update_range_usage', True)
+        super(AddressRecord, self).save(*args, **kwargs)
+        rng = find_range(self.ip_str)
+        if rng and update_range_usage:
+            rng.save()
+
+    def delete(self, *args, **kwargs):
+        update_range_usage = kwargs.pop('update_range_usage', True)
+        rng = find_range(self.ip_str)
+        super(AddressRecord, self).delete(*args, **kwargs)
+        if rng and update_range_usage:
+            rng.save()

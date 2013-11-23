@@ -1,0 +1,70 @@
+{% extends "core/core_detail.html" %}
+{% from "base/tables.html" import render_table %}
+
+{% set obj = object %}
+{% set obj_type_perm = request.user.get_profile().has_perm(request, 2, obj_class=obj_type, ctnr=obj) %}
+
+
+{% block title %}Container {{ object.name }}{% endblock %}
+{% block header %}Container {{ object.name }}{% endblock %}
+
+{% block content %}
+  <span id="ctnr-data"
+        data-ctnr-pk="{{ object.pk }}"
+        data-searchUserUrl="{{ url('user-search') }}"
+        data-searchDomainUrl="{{ url('domain-search') }}"
+        data-searchRangeUrl="{{ url('range-search') }}"
+        data-searchWorkgroupUrl="{{ url('workgroup-search') }}"
+        data-addObjectUrl="{{ url('ctnr-add-object', object.pk) }}">
+  </span>
+
+  {% if request.user.get_profile().has_perm(request, 2, obj_class="CtnrUser", ctnr=obj) or request.user.is_superuser  %}
+    <form class="form" id="add-object">
+      {% if request.user.is_superuser %}
+        <h3>Add Object to Container</h3>
+      {% else %}
+        <h3>Add User to Container</h3>
+      {% endif %}
+      <div class="inner-form" id="add-object-inner-form">
+        <ul style="float:top; left:0;" id="add-object-errorlist"></ul>
+          {{ object_select_form.as_p() }}
+      </div>
+      <div class="form-btns">
+        <hr>
+        <a id="add-object-ctnr" class="btn" href="#">Add</a>
+      </div>
+    </form>
+    <div id ="add-user-form" style="display: none">
+      {{ add_user_form.as_p() }}
+    </div>
+  {% endif %}
+
+  <div id=tables class=tableclass>
+    {% if user_table %}
+      <h3>Users</h3>
+      {{ render_table(request, user_table, 'user-table') }}
+    {% endif %}
+
+    {% if workgroup_table %}
+      <h3>Workgroups</h3>
+      {{ render_table(request, workgroup_table) }}
+    {% endif %}
+
+    {% if range_table %}
+      <h3>Ranges</h3>
+      {{ render_table(request, range_table) }}
+    {% endif %}
+
+    {% if domain_table %}
+      <h3>Domains</h3>
+      {{ render_table(request, domain_table) }}
+    {% endif %}
+
+    {% if rdomain_table %}
+      <h3>Reverse Domains</h3>
+      {{ render_table(request, rdomain_table) }}
+    {% endif %}
+  </div>
+
+  {{ js('ctnr') }}
+{% endblock %}
