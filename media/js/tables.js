@@ -1,5 +1,5 @@
 function enableBatchUpdate() {
-    //Remove batch update mode
+    //Remove editable grid mode
     if ($('#enable-eg').length) {
         $('#enable-eg').remove()
     };

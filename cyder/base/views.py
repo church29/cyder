@@ -186,7 +186,7 @@ def cy_view(request, get_klasses_fn, template, pk=None, obj_type=None):
         form.fields['system'].widget = forms.HiddenInput()
         from cyder.cydhcp.interface.forms import BatchInterfaceForm
         batchInterfaceForm = BatchInterfaceForm()
-
+        batchInterfaceForm.make_usable(request)
     return render(request, template, {
         'form': form,
         'obj': obj,
