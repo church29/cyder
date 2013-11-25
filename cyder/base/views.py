@@ -179,19 +179,16 @@ def cy_view(request, get_klasses_fn, template, pk=None, obj_type=None):
     object_list = _filter(request, Klass)
     page_obj = make_paginator(request, do_sort(request, object_list), 50)
 
-    if issubclass(type(form), UsabilityFormMixin):
-        form.make_usable(request)
-
     # Adjust this if statement to submit forms with ajax
     if 'AV' in FormKlass.__name__:
         return HttpResponse(json.dumps({'errors': form.errors}))
 
-    if obj_type == 'system' and len(object_list) == 0:
+    if (obj_type in ['static_interface', 'dynamic_interface', 'system']
+            and len(object_list) == 0):
         return redirect(reverse('system-create', args=[None]))
 
-    if Klass.__name__ in [
-            "StaticInterface", "DynamicInterface"] and pk is None:
-        form = None
+    if issubclass(type(form), UsabilityFormMixin):
+        form.make_usable(request)
 
     return render(request, template, {
         'form': form,
