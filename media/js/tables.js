@@ -54,10 +54,12 @@ function enableBatchUpdate() {
         interface_type = $('#title').text();
         form = $('#batch-hidden-inner-form');
         range_id = form.find('#id_range').val();
+        range_type = form.find('[type=radio]:checked').val();
         var postData = {
             interfaces: interfaces,
             interface_type: interface_type,
             range: range_id,
+            range_type: range_type,
         }
         $.post("/dhcp/interface/batch_update/", postData, function(data) {
         if (data.success) {
