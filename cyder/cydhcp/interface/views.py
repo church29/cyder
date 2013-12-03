@@ -1,5 +1,5 @@
 from django.db.models.loading import get_model
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.http import HttpResponse
 
 from cyder.cydhcp.interface.dynamic_intr.models import DynamicInterface
@@ -20,24 +20,40 @@ def interface_delete(request):
         return HttpResponse(json.dumps({'last': False}))
 
 
+def get_ranges(request):
+    if not request.POST:
+        return redirect(request.META.get('HTTP_REFERER', ''))
+
+    Range = get_model('cyder', 'range')
+    ctnr = request.session['ctnr']
+    range_type = request.POST.get('range_type', None)
+    ranges = []
+    if range_type:
+        ranges_qs = Range.objects.filter(ctnr=ctnr, range_type=range_type[:2])
+        for rng in ranges_qs:
+            ranges.append([rng.id, rng.__str__()])
+
+        return HttpResponse(json.dumps({'ranges': ranges}))
+
+    else:
+        return HttpResponse(json.dumps({'error': True}))
+
+
 def batch_update(request):
     if request.POST:
         if not request.POST['range'] or not request.POST['range_type']:
             return HttpResponse(json.dumps({
-                'error': 'Please select a range and range type'
-                }))
+                'error': 'Please select a range and range type'}))
 
         if not request.POST['interfaces']:
             return HttpResponse(json.dumps({
-                'error': 'No interfaces selected'
-                }))
+                'error': 'No interfaces selected'}))
 
         Range = get_model('cyder', 'range')
         rng = Range.objects.filter(id=request.POST['range'])
         if not rng.exists():
             return HttpResponse(json.dumps({
-                'error': 'That range does not exist'
-                }))
+                'error': 'That range does not exist'}))
 
         rng = rng.get()
         if ',' in request.POST['interfaces']:
@@ -54,8 +70,7 @@ def batch_update(request):
                     ((rng.end_lower - rng.start_lower) - len(used_ips))):
                 return HttpResponse(json.dumps({
                     'error': 'Range does not have enough space for selected '
-                    'interfaces'
-                    }))
+                    'interfaces'}))
             else:
                 interface_qs = Interface.objects.filter(pk__in=interfaces)
                 for intr in interface_qs:

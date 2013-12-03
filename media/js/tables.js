@@ -42,6 +42,24 @@ function enableBatchUpdate() {
         });
     });
 
+    $('input:radio[name=range_type]').live('change', function() {
+        var postData = {
+            range_type: $(this).val()
+        }
+        $.post("/dhcp/interface/get_ranges/", postData, function(data) {
+            if (data.ranges) {
+                form = $('#batch-hidden-inner-form');
+                form.find('#id_range').empty();
+                $.each(data.ranges, function() {
+                    form.find('#id_range').append(
+                        $('<option />').val(this[0]).text(this[1]));
+                });
+            } else {
+                return false;
+            };
+        }, 'json');
+    });
+
     $('#batch-submit').click(function (e) {
         e.preventDefault();
         var interfaces = "";
