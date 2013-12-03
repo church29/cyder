@@ -22,9 +22,9 @@ def interface_delete(request):
 
 def batch_update(request):
     if request.POST:
-        if not request.POST['range']:
+        if not request.POST['range'] or not request.POST['range_type']:
             return HttpResponse(json.dumps({
-                'error': 'That is not a valid choice'
+                'error': 'Please select a range and range type'
                 }))
 
         if not request.POST['interfaces']:
@@ -32,11 +32,11 @@ def batch_update(request):
                 'error': 'No interfaces selected'
                 }))
 
-        Range = get_model('range', 'range')
+        Range = get_model('cyder', 'range')
         rng = Range.objects.filter(id=request.POST['range'])
         if not rng.exists():
             return HttpResponse(json.dumps({
-                'error': 'That is not a valid choice'
+                'error': 'That range does not exist'
                 }))
 
         rng = rng.get()
@@ -45,9 +45,9 @@ def batch_update(request):
         else:
             interfaces = [request.POST['interfaces']]
 
-        intr = request.POST['interface_type'].split(' ')[1].lower()
-        Interface = get_model((intr + '_intr'), (intr + 'interface'))
-        if intr == 'static':
+        intr_type = request.POST['interface_type'].split(' ')[1].lower()
+        Interface = get_model('cyder', (intr_type + 'interface'))
+        if Interface.__name__ == 'StaticInterface':
             used_ips, _ = range_usage(
                 rng.start_lower, rng.end_lower, rng.ip_type)
             if (len(interfaces) >

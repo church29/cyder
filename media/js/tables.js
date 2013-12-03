@@ -41,6 +41,7 @@ function enableBatchUpdate() {
             $(this).attr('checked', $all);
         });
     });
+
     $('#batch-submit').click(function (e) {
         e.preventDefault();
         var interfaces = "";
@@ -54,10 +55,12 @@ function enableBatchUpdate() {
         interface_type = $('#title').text();
         form = $('#batch-hidden-inner-form');
         range_id = form.find('#id_range').val();
+        range_type = form.find('input:radio[name=range_type]:checked').val();
         var postData = {
             interfaces: interfaces,
             interface_type: interface_type,
             range: range_id,
+            range_type: range_type,
         }
         $.post("/dhcp/interface/batch_update/", postData, function(data) {
         if (data.success) {
