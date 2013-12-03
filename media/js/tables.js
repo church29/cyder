@@ -41,6 +41,7 @@ function enableBatchUpdate() {
             $(this).attr('checked', $all);
         });
     });
+
     $('#batch-submit').click(function (e) {
         e.preventDefault();
         var interfaces = "";
@@ -54,7 +55,7 @@ function enableBatchUpdate() {
         interface_type = $('#title').text();
         form = $('#batch-hidden-inner-form');
         range_id = form.find('#id_range').val();
-        range_type = form.find('[type=radio]:checked').val();
+        range_type = form.find('input:radio[name=range_type]:checked').val();
         var postData = {
             interfaces: interfaces,
             interface_type: interface_type,
