@@ -40,30 +40,31 @@ def get_ranges(request):
 
 
 def batch_update(request):
-    if request.POST:
-        if not request.POST['range'] or not request.POST['range_type']:
-            return HttpResponse(json.dumps({
-                'error': 'Please select a range and range type'}))
+    if not request.POST:
+        return redirect(request.META.get('HTTP_REFERER', ''))
 
-        if not request.POST['interfaces']:
-            return HttpResponse(json.dumps({
-                'error': 'No interfaces selected'}))
+    if (not request.POST.get('range', None) or
+            not request.POST.get('range_type', None)):
+        return HttpResponse(json.dumps({
+            'error': 'Please select a range and range type'}))
 
-        Range = get_model('cyder', 'range')
-        rng = Range.objects.filter(id=request.POST['range'])
-        if not rng.exists():
-            return HttpResponse(json.dumps({
-                'error': 'That range does not exist'}))
+    if not request.POST.get('interfaces', None):
+        return HttpResponse(json.dumps({
+            'error': 'No interfaces selected'}))
 
-        rng = rng.get()
-        if ',' in request.POST['interfaces']:
-            interfaces = request.POST['interfaces'].split(',')
-        else:
-            interfaces = [request.POST['interfaces']]
+    Range = get_model('cyder', 'range')
+    rng = Range.objects.filter(id=request.POST['range'])
+    if not rng.exists():
+        return HttpResponse(json.dumps({
+            'error': 'That range does not exist'}))
 
-        intr_type = request.POST['interface_type'].split(' ')[1].lower()
-        Interface = get_model('cyder', (intr_type + 'interface'))
-        if Interface.__name__ == 'StaticInterface':
+    rng = rng.get()
+    print rng.range_type
+    interfaces = request.POST['interfaces'].split(',')
+    intr_type = request.POST['interface_type'].split(' ')[1].lower()
+    Interface = get_model('cyder', (intr_type + 'interface'))
+    if Interface.__name__ == 'StaticInterface':
+        if rng.range_type == 'st':
             used_ips, _ = range_usage(
                 rng.start_lower, rng.end_lower, rng.ip_type)
             if (len(interfaces) >
@@ -75,12 +76,20 @@ def batch_update(request):
                 interface_qs = Interface.objects.filter(pk__in=interfaces)
                 for intr in interface_qs:
                     ip = rng.get_next_ip()
+
                     #update ip logic
                     intr.save()
         else:
             interface_qs = Interface.objects.filter(pk__in=interfaces)
-            interface_qs.update(range=rng)
+            dynamic_intrs = []
             for intr in interface_qs:
+                #migrate to dynamic
                 intr.save()
 
-        return HttpResponse(json.dumps({'success': True}))
+    else:
+        interface_qs = Interface.objects.filter(pk__in=interfaces)
+        interface_qs.update(range=rng)
+        for intr in interface_qs:
+            intr.save()
+
+    return HttpResponse(json.dumps({'success': True}))
