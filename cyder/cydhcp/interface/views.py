@@ -57,9 +57,11 @@ def batch_update(request):
     if not rng.exists():
         return HttpResponse(json.dumps({
             'error': 'That range does not exist'}))
+    # going to be used when one interface fails
+    # we reset all interfaces back to there original state
+    success = True
 
     rng = rng.get()
-    print rng.range_type
     interfaces = request.POST['interfaces'].split(',')
     intr_type = request.POST['interface_type'].split(' ')[1].lower()
     Interface = get_model('cyder', (intr_type + 'interface'))
@@ -68,7 +70,7 @@ def batch_update(request):
             used_ips, _ = range_usage(
                 rng.start_lower, rng.end_lower, rng.ip_type)
             if (len(interfaces) >
-                    ((rng.end_lower - rng.start_lower) - len(used_ips))):
+                    (((rng.end_lower - rng.start_lower) + 1) - len(used_ips))):
                 return HttpResponse(json.dumps({
                     'error': 'Range does not have enough space for selected '
                     'interfaces'}))
@@ -76,9 +78,13 @@ def batch_update(request):
                 interface_qs = Interface.objects.filter(pk__in=interfaces)
                 for intr in interface_qs:
                     ip = rng.get_next_ip()
-
-                    #update ip logic
-                    intr.save()
+                    intr.ip_str = ip
+                    intr.ip_type = rng.ip_type
+                    try:
+                        intr.full_clean()
+                        intr.save()
+                    except:
+                        success = False
         else:
             interface_qs = Interface.objects.filter(pk__in=interfaces)
             dynamic_intrs = []
@@ -90,6 +96,10 @@ def batch_update(request):
         interface_qs = Interface.objects.filter(pk__in=interfaces)
         interface_qs.update(range=rng)
         for intr in interface_qs:
-            intr.save()
+            try:
+                intr.full_clean()
+                intr.save()
+            except:
+                success = False
 
     return HttpResponse(json.dumps({'success': True}))
