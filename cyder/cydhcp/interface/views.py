@@ -62,6 +62,12 @@ def batch_update(request):
     success = True
 
     rng = rng.get()
+    Site = get_model('cyder', 'site')
+    site_id = request.POST.get('site', None)
+    site_qs = Site.objects.filter(id=site_id)
+    if site_qs.exists():
+        site = site_qs.get()
+
     interfaces = request.POST['interfaces'].split(',')
     intr_type = request.POST['interface_type'].split(' ')[1].lower()
     Interface = get_model('cyder', (intr_type + 'interface'))
@@ -80,6 +86,8 @@ def batch_update(request):
                     ip = rng.get_next_ip()
                     intr.ip_str = ip
                     intr.ip_type = rng.ip_type
+                    if site:
+                        intr.site = site
                     try:
                         intr.full_clean()
                         intr.save()
@@ -95,6 +103,8 @@ def batch_update(request):
     else:
         interface_qs = Interface.objects.filter(pk__in=interfaces)
         interface_qs.update(range=rng)
+        if site:
+            interface_qs.update(site=site)
         for intr in interface_qs:
             try:
                 intr.full_clean()
