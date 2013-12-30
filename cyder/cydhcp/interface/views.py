@@ -53,20 +53,24 @@ def batch_update(request):
             'error': 'No interfaces selected'}))
 
     Range = get_model('cyder', 'range')
-    rng = Range.objects.filter(id=request.POST['range'])
-    if not rng.exists():
+    rng_qs = Range.objects.filter(id=request.POST['range'])
+    if not rng_qs.exists():
         return HttpResponse(json.dumps({
             'error': 'That range does not exist'}))
+
+    rng = rng_qs.get()
     # going to be used when one interface fails
     # we reset all interfaces back to there original state
     success = True
 
-    rng = rng.get()
     Site = get_model('cyder', 'site')
     site_id = request.POST.get('site', None)
     site_qs = Site.objects.filter(id=site_id)
-    if site_qs.exists():
-        site = site_qs.get()
+    if not site_qs.exists():
+        return HttpResponse(json.dumps({
+            'error': 'That site does not exist'}))
+
+    site = site_qs.get()
 
     interfaces = request.POST['interfaces'].split(',')
     intr_type = request.POST['interface_type'].split(' ')[1].lower()
