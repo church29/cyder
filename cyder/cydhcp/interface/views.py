@@ -77,6 +77,7 @@ def batch_update(request):
     intr_type = request.POST['interface_type'].split(' ')[1].lower()
     Interface = get_model('cyder', (intr_type + 'interface'))
     intrs = []
+    new_intrs = []
     if Interface.__name__ == 'StaticInterface':
         if rng.range_type == 'st':
             used_ips, _ = range_usage(
@@ -106,10 +107,32 @@ def batch_update(request):
         else:
             interface_qs = Interface.objects.filter(pk__in=interfaces)
             dynamic_intrs = []
+            DynamicInterface = get_model('cyder', 'dynamicinterface')
             for intr in interface_qs:
-                #migrate to dynamic
-                intr.save()
+                intrs.append(intr)
+                new_intr = DynamicInterface(
+                    mac=intr.mac, range=rng, dhcp_enabled=intr.dhcp_enabled,
+                    ctnr=intr.ctnr, workgroup=intr.workgroup,
+                    system=intr.system)
+                new_intrs.append(new_intr)
+                try:
+                    intr.full_clean()
+                except:
+                    return HttpResponse(json.dumps({
+                        'error': 'Batch update was unsuccessful'}))
 
+            for intr in new_intrs:
+                try:
+                    intr.save()
+                except:
+                    success = False
+            if success is True:
+                interface_qs.delete()
+            else:
+                for intr in new_intrs:
+                    intr.delete()
+                    return HttpResponse(json.dumps({
+                        'error': 'Batch update was unsuccessful'}))
     else:
         interface_qs = Interface.objects.filter(pk__in=interfaces)
         interface_qs.update(range=rng)
