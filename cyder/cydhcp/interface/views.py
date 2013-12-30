@@ -40,6 +40,10 @@ def get_ranges(request):
 
 
 def batch_update(request):
+    # going to be used when one interface fails
+    # we reset all interfaces back to there original state
+    success = True
+    site = None
     if not request.POST:
         return redirect(request.META.get('HTTP_REFERER', ''))
 
@@ -59,22 +63,20 @@ def batch_update(request):
             'error': 'That range does not exist'}))
 
     rng = rng_qs.get()
-    # going to be used when one interface fails
-    # we reset all interfaces back to there original state
-    success = True
-
-    Site = get_model('cyder', 'site')
     site_id = request.POST.get('site', None)
-    site_qs = Site.objects.filter(id=site_id)
-    if not site_qs.exists():
-        return HttpResponse(json.dumps({
-            'error': 'That site does not exist'}))
+    if site_id:
+        Site = get_model('cyder', 'site')
+        site_qs = Site.objects.filter(id=site_id)
+        if not site_qs.exists():
+            return HttpResponse(json.dumps({
+                'error': 'That site does not exist'}))
 
-    site = site_qs.get()
+        site = site_qs.get()
 
     interfaces = request.POST['interfaces'].split(',')
     intr_type = request.POST['interface_type'].split(' ')[1].lower()
     Interface = get_model('cyder', (intr_type + 'interface'))
+    intrs = []
     if Interface.__name__ == 'StaticInterface':
         if rng.range_type == 'st':
             used_ips, _ = range_usage(
@@ -94,9 +96,13 @@ def batch_update(request):
                         intr.site = site
                     try:
                         intr.full_clean()
-                        intr.save()
+                        intrs.append(intr)
                     except:
-                        success = False
+                        return HttpResponse(json.dumps({
+                            'error': 'Batch update was unsuccessful'}))
+                for intr in intrs:
+                    intr.save()
+
         else:
             interface_qs = Interface.objects.filter(pk__in=interfaces)
             dynamic_intrs = []
@@ -112,8 +118,13 @@ def batch_update(request):
         for intr in interface_qs:
             try:
                 intr.full_clean()
-                intr.save()
+                intrs.append(intr)
             except:
                 success = False
+                return HttpResponse(json.dumps({
+                    'error': 'Batch update was unsuccessful'}))
+
+        for intr in intrs:
+            intr.save()
 
     return HttpResponse(json.dumps({'success': True}))
