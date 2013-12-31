@@ -76,6 +76,7 @@ def batch_update(request):
     interfaces = request.POST['interfaces'].split(',')
     intr_type = request.POST['interface_type'].split(' ')[1].lower()
     Interface = get_model('cyder', (intr_type + 'interface'))
+    interface_qs = Interface.objects.filter(pk__in=interfaces)
     intrs = []
     new_intrs = []
     if Interface.__name__ == 'StaticInterface':
@@ -87,26 +88,23 @@ def batch_update(request):
                 return HttpResponse(json.dumps({
                     'error': 'Range does not have enough space for selected '
                     'interfaces'}))
-            else:
-                interface_qs = Interface.objects.filter(pk__in=interfaces)
-                for intr in interface_qs:
-                    ip = rng.get_next_ip()
-                    intr.ip_str = ip
-                    intr.ip_type = rng.ip_type
-                    if site:
-                        intr.site = site
-                    try:
-                        intr.full_clean()
-                        intrs.append(intr)
-                    except:
-                        return HttpResponse(json.dumps({
-                            'error': 'Batch update was unsuccessful'}))
-                for intr in intrs:
-                    intr.save()
+
+            for intr in interface_qs:
+                ip = rng.get_next_ip()
+                intr.ip_str = str(ip)
+                intr.ip_type = rng.ip_type
+                if site:
+                    intr.site = site
+                try:
+                    intr.full_clean()
+                    intrs.append(intr)
+                except:
+                    return HttpResponse(json.dumps({
+                        'error': 'Batch update was unsuccessful'}))
+            for intr in intrs:
+                intr.save()
 
         else:
-            interface_qs = Interface.objects.filter(pk__in=interfaces)
-            dynamic_intrs = []
             DynamicInterface = get_model('cyder', 'dynamicinterface')
             for intr in interface_qs:
                 intrs.append(intr)
@@ -126,28 +124,70 @@ def batch_update(request):
                     intr.save()
                 except:
                     success = False
+
             if success is True:
                 interface_qs.delete()
             else:
                 for intr in new_intrs:
                     intr.delete()
-                    return HttpResponse(json.dumps({
-                        'error': 'Batch update was unsuccessful'}))
-    else:
-        interface_qs = Interface.objects.filter(pk__in=interfaces)
-        interface_qs.update(range=rng)
-        if site:
-            interface_qs.update(site=site)
-        for intr in interface_qs:
-            try:
-                intr.full_clean()
-                intrs.append(intr)
-            except:
-                success = False
+
                 return HttpResponse(json.dumps({
                     'error': 'Batch update was unsuccessful'}))
 
-        for intr in intrs:
-            intr.save()
+    else:
+        if rng.range_type == 'dy':
+            interface_qs.update(range=rng)
+            if site:
+                interface_qs.update(site=site)
+            for intr in interface_qs:
+                try:
+                    intr.full_clean()
+                    intrs.append(intr)
+                except:
+                    return HttpResponse(json.dumps({
+                        'error': 'Batch update was unsuccessful'}))
+
+            for intr in intrs:
+                intr.save()
+        else:
+            used_ips, _ = range_usage(
+                rng.start_lower, rng.end_lower, rng.ip_type)
+            if (len(interfaces) >
+                    (((rng.end_lower - rng.start_lower) + 1) - len(used_ips))):
+                return HttpResponse(json.dumps({
+                    'error': 'Range does not have enough space for selected '
+                    'interfaces'}))
+
+            StaticInterface = get_model('cyder', 'staticinterface')
+            for intr in interface_qs:
+                intrs.append(intr)
+                ip = rng.get_next_ip()
+                label = "{0}-{1}".format(intr.system.name, intr.mac)
+                new_intr = StaticInterface(
+                    mac=intr.mac, ip_str=str(ip), label=label,
+                    ctnr=intr.ctnr, workgroup=intr.workgroup,
+                    domain=rng.domain, system=intr.system,
+                    ip_type=rng.ip_type, dhcp_enabled=intr.dhcp_enabled)
+                new_intrs.append(new_intr)
+                try:
+                    intr.full_clean()
+                except:
+                    return HttpResponse(json.dumps({
+                        'error': 'Batch update was unsuccessful'}))
+
+            for intr in new_intrs:
+                try:
+                    intr.save()
+                except:
+                    success = False
+
+            if success is True:
+                interface_qs.delete()
+            else:
+                for intr in new_intrs:
+                    intr.delete()
+
+                return HttpResponse(json.dumps({
+                    'error': 'Batch update was unsuccessful'}))
 
     return HttpResponse(json.dumps({'success': True}))
