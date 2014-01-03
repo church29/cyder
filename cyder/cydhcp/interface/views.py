@@ -44,6 +44,8 @@ def batch_update(request):
     # we reset all interfaces back to there original state
     success = True
     site = None
+    ip = None
+    start_lower = None
     if not request.POST:
         return redirect(request.META.get('HTTP_REFERER', ''))
 
@@ -90,7 +92,10 @@ def batch_update(request):
                     'interfaces'}))
 
             for intr in interface_qs:
-                ip = rng.get_next_ip()
+                if ip:
+                    start_lower = ip._ip + 1
+
+                ip = rng.get_next_ip(start_lower=start_lower)
                 intr.ip_str = str(ip)
                 intr.ip_type = rng.ip_type
                 if site:
@@ -161,7 +166,10 @@ def batch_update(request):
             StaticInterface = get_model('cyder', 'staticinterface')
             for intr in interface_qs:
                 intrs.append(intr)
-                ip = rng.get_next_ip()
+                if ip:
+                    start_lower = ip._ip + 1
+
+                ip = rng.get_next_ip(start_lower=start_lower)
                 label = "{0}-{1}".format(intr.system.name, intr.mac)
                 new_intr = StaticInterface(
                     mac=intr.mac, ip_str=str(ip), label=label,

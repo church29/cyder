@@ -378,19 +378,22 @@ class Range(BaseModel, ViewMixin, ObjectUrlMixin):
 
         return usage
 
-    def get_next_ip(self):
+    def get_next_ip(self, start_lower=None):
         """Finds the most appropriate IP address within a range. If it can't
         find an IP it returns None. If it finds an IP it returns an IPv4Address
         object.
 
             :returns: ipaddr.IPv4Address
         """
+        if not start_lower:
+            start_lower = self.start_lower
+
         if self.network and self.network.ip_type != '4':
             return None
         elif self.ip_type != '4':
             return None
 
-        ip = find_free_ip(self.start_lower, self.end_lower, ip_type='4')
+        ip = find_free_ip(start_lower, self.end_lower, ip_type='4')
         if ip:
             return ip
         else:
