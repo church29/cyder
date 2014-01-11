@@ -29,10 +29,7 @@ function enableBatchUpdate() {
     $('#createInterface').text('Update Interfaces');
     $('#createInterface').attr('href', '#');
 
-    $('#createInterface').click(function () {
-        $('#batch-form').slideToggle();
-    });
-    $('#batch-cancel').click(function () {
+    $('#createInterface, #batch-cancel').click(function () {
         $('#batch-form').slideToggle();
     });
     $('#selectAll').change(function() {
@@ -177,8 +174,7 @@ $(document).ready(function() {
     if ($enableBatch.length) {
         $enableBatch[0].reset();
         $enableBatch.find('input').removeAttr('disabled').change(function() {
-            $this = $(this);
-            if ($this.attr('checked')) {
+            if ($(this).attr('checked')) {
                 enableBatchUpdate();
             } else {
                 location.reload();
