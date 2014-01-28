@@ -1,4 +1,5 @@
 function enableBatchUpdate() {
+    var csrfToken = $('#view-metadata').attr('data-csrfToken');
     //Remove editable grid mode
     if ($('#enable-eg').length) {
         $('#enable-eg').remove()
@@ -14,6 +15,7 @@ function enableBatchUpdate() {
         $('th:contains("Info")').remove();
         $('td:first-child').remove();
     }
+
     $('#egtable').find('td, th').each(function (i, td) {
         var $td = $(td);
         if ($td.children().length) {
@@ -21,17 +23,21 @@ function enableBatchUpdate() {
         }
         $td.text($td.text().trim());
     });
+
     $('#egtable').find('thead').find('tr:last').append('<th>select <input type="checkbox" id="selectAll" /></th>');
     $('#egtable').find('tbody').find('tr').each(function (i, tr) {
         var $id = $(tr).attr('data-url').split('/')[3];
         $(tr).append('<td><input type="checkbox" id="' + $id + '" name="interfaceCheck" /></td>');
     });
-    $('#createInterface').text('Update Interfaces');
-    $('#createInterface').attr('href', '#');
 
-    $('#createInterface, #batch-cancel').click(function () {
+    $('#system_create').slideToggle();
+    $('#batch_update_btn').slideToggle();
+
+    $('#batch_update_btn, #batch-cancel').click(function (e) {
+        e.preventDefault();
         $('#batch-form').slideToggle();
     });
+
     $('#selectAll').change(function() {
         var $all = $(this).attr('checked');
         $('input[name=interfaceCheck]').each(function() {
@@ -77,6 +83,7 @@ function enableBatchUpdate() {
             interface_type: interface_type,
             range: range_id,
             range_type: range_type,
+            csrfmiddlewaretoken: csrfToken,
             site: site_id,
         }
         $.post("/dhcp/interface/batch_update/", postData, function(data) {

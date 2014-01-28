@@ -184,6 +184,9 @@ def cy_view(request, get_klasses_fn, template, pk=None, obj_type=None):
     DynamicInterface = get_model('cyder', 'dynamicinterface')
     if form._meta.model in [StaticInterface, DynamicInterface]:
         form = None
+        from cyder.cydhcp.interface.forms import BatchInterfaceForm
+        batchInterfaceForm = BatchInterfaceForm()
+        batchInterfaceForm.make_usable(request)
     else:
         if (obj_type in ['system', 'static_interface', 'dynamic_interface']
                 and not object_list):

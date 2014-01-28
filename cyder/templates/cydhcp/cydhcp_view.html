@@ -19,6 +19,9 @@
     {% else %}
       <a id ="btn create-obj" class="btn create-obj">Create {{ a_or_an(obj_type) }} {{ pretty_obj_type }}</a>
     {% endif %}
+    {% if batchInterfaceForm %}
+    <a id="batch_update_btn" style="display:none" class="btn submit c">Update Interfaces</a>
+    {% endif %}
   {% endif %}
 {% endblock %}
 
@@ -47,20 +50,20 @@
         </div>
       </form>
     </div>
-    {% if batchInterfaceForm %}
-      <div class="hidden" id="batch-form">
-        <form class="form" method="POST">
-          <h2 id="form-title">Batch update for selected interfaces</h2>
-          <div class="inner-form" id="batch-hidden-inner-form">
-            {{ batchInterfaceForm.as_p() }}
-          </div>
-          <div class="form-btns">
-            <hr>
-            <a class="btn c" id="batch-submit">Update</a>
-            <a class="btn cancel c" id="batch-cancel">Cancel</a>
-          </div>
-        </form>
-      </div>
-    {% endif %}
+  {% endif %}
+  {% if batchInterfaceForm %}
+    <div class="hidden" id="batch-form">
+      <form class="form" method="POST">
+        <h2 id="form-title">Batch update for selected interfaces</h2>
+        <div class="inner-form" id="batch-hidden-inner-form">
+          {{ batchInterfaceForm.as_p() }}
+        </div>
+        <div class="form-btns">
+          <hr>
+          <a class="btn c" id="batch-submit">Update</a>
+          <a class="btn cancel c" id="batch-cancel">Cancel</a>
+        </div>
+      </form>
+    </div>
   {% endif %}
 {% endblock %}
