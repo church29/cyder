@@ -47,6 +47,7 @@ function enableBatchUpdate() {
 
     $('input:radio[name=range_type]').live('change', function() {
         var postData = {
+            csrfmiddlewaretoken: csrfToken,
             range_type: $(this).val()
         }
         $.post("/dhcp/interface/get_ranges/", postData, function(data) {

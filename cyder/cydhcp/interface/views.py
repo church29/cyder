@@ -29,10 +29,14 @@ def get_ranges(request):
     range_type = request.POST.get('range_type', None)
     ranges = []
     if range_type:
-        ranges_qs = Range.objects.filter(ctnr=ctnr, range_type=range_type[:2])
+        if ctnr.name == 'global':
+            ranges_qs = Range.objects.filter(range_type=range_type[:2])
+        else:
+            ranges_qs = Range.objects.filter(
+                ctnr=ctnr, range_type=range_type[:2])
+
         for rng in ranges_qs:
             ranges.append([rng.id, rng.__str__()])
-
         return HttpResponse(json.dumps({'ranges': ranges}))
 
     else:
