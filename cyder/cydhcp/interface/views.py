@@ -1,4 +1,5 @@
 from django.db.models.loading import get_model
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect
 from django.http import HttpResponse
 
@@ -44,162 +45,100 @@ def get_ranges(request):
 
 
 def batch_update(request):
-    # going to be used when one interface fails
-    # we reset all interfaces back to there original state
-    success = True
-    site = None
-    ip = None
-    start_lower = None
     if not request.POST:
         return redirect(request.META.get('HTTP_REFERER', ''))
 
-    if (not request.POST.get('range', None) or
-            not request.POST.get('range_type', None)):
-        return HttpResponse(json.dumps({
-            'error': 'Please select a range and range type'}))
+    success = True
+    ip = None
+    start_lower = None
+    intr_type = request.POST['interface_type']
+    new_intrs = []
 
-    if not request.POST.get('interfaces', None):
-        return HttpResponse(json.dumps({
-            'error': 'No interfaces selected'}))
+    for field in ['range', 'range_type', 'interfaces']:
+        if not request.POST.get(field, None):
+            field = ' '.join(field.split('_'))
+            return HttpResponse(json.dumps({
+                'error': 'Please select {0}'.format(field)}))
 
     Range = get_model('cyder', 'range')
     rng_qs = Range.objects.filter(id=request.POST['range'])
-    if not rng_qs.exists():
+    if rng_qs.exists():
+        rng = rng_qs.get()
+    else:
         return HttpResponse(json.dumps({
             'error': 'That range does not exist'}))
 
-    rng = rng_qs.get()
-    site_id = request.POST.get('site', None)
-    if site_id:
-        Site = get_model('cyder', 'site')
-        site_qs = Site.objects.filter(id=site_id)
-        if not site_qs.exists():
-            return HttpResponse(json.dumps({
-                'error': 'That site does not exist'}))
-
-        site = site_qs.get()
-
+    same_type = intr_type[:2] == rng.range_type
+    Interface = get_model('cyder', intr_type)
     interfaces = request.POST['interfaces'].split(',')
-    intr_type = request.POST['interface_type'].split(' ')[1].lower()
-    Interface = get_model('cyder', (intr_type + 'interface'))
     interface_qs = Interface.objects.filter(pk__in=interfaces)
-    intrs = []
-    new_intrs = []
-    if Interface.__name__ == 'StaticInterface':
+    if rng.range_type == 'st':
+        used_ips, _ = range_usage(
+            rng.start_lower, rng.end_lower, rng.ip_type)
+        if (len(interfaces) >
+                (((rng.end_lower - rng.start_lower) + 1) - len(used_ips))):
+            return HttpResponse(json.dumps({
+                'error': 'Range does not have enough space for selected '
+                'interfaces'}))
+
+    for intr in interface_qs:
         if rng.range_type == 'st':
-            used_ips, _ = range_usage(
-                rng.start_lower, rng.end_lower, rng.ip_type)
-            if (len(interfaces) >
-                    (((rng.end_lower - rng.start_lower) + 1) - len(used_ips))):
-                return HttpResponse(json.dumps({
-                    'error': 'Range does not have enough space for selected '
-                    'interfaces'}))
+            if ip:
+                start_lower = ip._ip + 1
 
-            for intr in interface_qs:
-                if ip:
-                    start_lower = ip._ip + 1
+            ip = rng.get_next_ip(start_lower=start_lower)
 
-                ip = rng.get_next_ip(start_lower=start_lower)
+        if same_type:
+            if 'static' in intr_type:
                 intr.ip_str = str(ip)
                 intr.ip_type = rng.ip_type
-                if site:
-                    intr.site = site
-                try:
-                    intr.full_clean()
-                    intrs.append(intr)
-                except:
-                    return HttpResponse(json.dumps({
-                        'error': 'Batch update was unsuccessful'}))
-            for intr in intrs:
-                intr.save()
+            else:
+                intr.range = rng
+
+            new_intr = intr
 
         else:
-            DynamicInterface = get_model('cyder', 'dynamicinterface')
-            for intr in interface_qs:
-                intrs.append(intr)
-                new_intr = DynamicInterface(
-                    mac=intr.mac, range=rng, dhcp_enabled=intr.dhcp_enabled,
-                    ctnr=intr.ctnr, workgroup=intr.workgroup,
-                    system=intr.system)
-                new_intrs.append(new_intr)
-                try:
-                    intr.full_clean()
-                except:
-                    return HttpResponse(json.dumps({
-                        'error': 'Batch update was unsuccessful'}))
-
-            for intr in new_intrs:
-                try:
-                    intr.save()
-                except:
-                    success = False
-
-            if success is True:
-                interface_qs.delete()
+            new_intr_type = 'staticinterfacedynamicinterface'.replace(
+                intr_type, '')
+            NewInterface = get_model('cyder', new_intr_type)
+            kwargs = {'mac': intr.mac, 'dhcp_enabled': intr.dhcp_enabled,
+                      'ctnr': intr.ctnr, 'workgroup': intr.workgroup,
+                      'system': intr.system}
+            if 'static' in new_intr_type:
+                label = '{0}-{1}'.format(intr.system.name, intr.mac)
+                kwargs.update({'ip_str': str(ip), 'ip_type': rng.ip_type,
+                               'dns_enabled': True, 'domain': rng.domain,
+                               'label': label})
             else:
-                for intr in new_intrs:
-                    intr.delete()
+                kwargs.update({'range': rng})
 
-                return HttpResponse(json.dumps({
-                    'error': 'Batch update was unsuccessful'}))
+            new_intr = NewInterface(**kwargs)
 
+        try:
+            intr.full_clean()
+            new_intrs.append(new_intr)
+        except ValidationError as e:
+            return HttpResponse(json.dumps({
+                'error': 'Batch update was unsuccessful: {0}'.format(str(e))}))
+    if same_type:
+        for intr in new_intrs:
+            intr.save()
     else:
-        if rng.range_type == 'dy':
-            interface_qs.update(range=rng)
-            if site:
-                interface_qs.update(site=site)
-            for intr in interface_qs:
-                try:
-                    intr.full_clean()
-                    intrs.append(intr)
-                except:
-                    return HttpResponse(json.dumps({
-                        'error': 'Batch update was unsuccessful'}))
-
-            for intr in intrs:
+        for intr in new_intrs:
+            try:
                 intr.save()
+            except ValidationError as e:
+                success = False
+
+        if success:
+            interface_qs.delete()
+            rng.save()
         else:
-            used_ips, _ = range_usage(
-                rng.start_lower, rng.end_lower, rng.ip_type)
-            if (len(interfaces) >
-                    (((rng.end_lower - rng.start_lower) + 1) - len(used_ips))):
-                return HttpResponse(json.dumps({
-                    'error': 'Range does not have enough space for selected '
-                    'interfaces'}))
-
-            StaticInterface = get_model('cyder', 'staticinterface')
-            for intr in interface_qs:
-                intrs.append(intr)
-                if ip:
-                    start_lower = ip._ip + 1
-
-                ip = rng.get_next_ip(start_lower=start_lower)
-                label = "{0}-{1}".format(intr.system.name, intr.mac)
-                new_intr = StaticInterface(
-                    mac=intr.mac, ip_str=str(ip), label=label,
-                    ctnr=intr.ctnr, workgroup=intr.workgroup,
-                    domain=rng.domain, system=intr.system,
-                    ip_type=rng.ip_type, dhcp_enabled=intr.dhcp_enabled)
-                new_intrs.append(new_intr)
-                try:
-                    intr.full_clean()
-                except:
-                    return HttpResponse(json.dumps({
-                        'error': 'Batch update was unsuccessful'}))
-
             for intr in new_intrs:
-                try:
-                    intr.save()
-                except:
-                    success = False
+                intr.delete()
 
-            if success is True:
-                interface_qs.delete()
-            else:
-                for intr in new_intrs:
-                    intr.delete()
-
-                return HttpResponse(json.dumps({
-                    'error': 'Batch update was unsuccessful'}))
+            rng.save()
+            return HttpResponse(json.dumps({
+                'error': 'Batch update was unsuccessful: {0}'.format(str(e))}))
 
     return HttpResponse(json.dumps({'success': True}))

@@ -30,8 +30,8 @@ function enableBatchUpdate() {
         $(tr).append('<td><input type="checkbox" id="' + $id + '" name="interfaceCheck" /></td>');
     });
 
-    $('#system_create').slideToggle();
-    $('#batch_update_btn').slideToggle();
+    $('#system_create').css({'display': 'none'});
+    $('#batch_update_btn').css({'display': 'block'});
 
     $('#batch_update_btn, #batch-cancel').click(function (e) {
         e.preventDefault();
@@ -74,7 +74,8 @@ function enableBatchUpdate() {
         });
         interfaces = interfaces.slice(0,-1);
 
-        interface_type = $('#title').text();
+        interface_type = $('#title').text().replace(
+            ' Interfaces', 'interface').toLowerCase().trim();
         form = $('#batch-hidden-inner-form');
         range_id = form.find('#id_range').val();
         range_type = form.find('input:radio[name=range_type]:checked').val();

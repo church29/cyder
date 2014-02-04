@@ -1,7 +1,6 @@
 from django import forms
 
 from cyder.cydhcp.range.models import Range
-from cyder.cydhcp.site.models import Site
 from cyder.base.mixins import UsabilityFormMixin
 
 
@@ -10,4 +9,3 @@ class BatchInterfaceForm(forms.Form, UsabilityFormMixin):
         widget=forms.RadioSelect,
         choices=(('static', 'Static'), ('dynamic', 'Dynamic')))
     range = forms.ModelChoiceField(queryset=Range.objects.all())
-    site = forms.ModelChoiceField(queryset=Site.objects.all(), required=False)
