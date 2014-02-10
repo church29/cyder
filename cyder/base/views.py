@@ -175,17 +175,17 @@ def cy_view(request, get_klasses_fn, template, pk=None, obj_type=None):
     elif request.method == 'GET':
         form = FormKlass(instance=obj)
         object_list = _filter(request, Klass)
-        if obj_type == 'system' and not object_list:
+
+        if obj_type == 'system' and not object_list.exists():
             return redirect(reverse('system-create'))
 
         page_obj = make_paginator(request, do_sort(request, object_list), 50)
         object_table = tablefy(page_obj, request=request)
 
-    if obj_type in ['static_interface', 'dynamic_interface']:
-        form = None
-        from cyder.cydhcp.interface.forms import BatchInterfaceForm
-        batchInterfaceForm = BatchInterfaceForm()
-        batchInterfaceForm.make_usable(request)
+        if obj_type in ['static_interface', 'dynamic_interface']:
+            from cyder.cydhcp.interface.forms import BatchInterfaceForm
+            batchInterfaceForm = BatchInterfaceForm()
+            batchInterfaceForm.make_usable(request)
 
     if isinstance(form, UsabilityFormMixin):
         form.make_usable(request)
@@ -228,14 +228,7 @@ def static_dynamic_view(request):
             data['data'].append(('MAC', '3', obj))
             data['data'].append(('IP', '4', obj.range))
 
-        if obj.last_seen == 0:
-            date = ''
-        else:
-            import datetime
-            date = datetime.datetime.fromtimestamp(obj.last_seen)
-            date = date.strftime('%B %d, %Y, %I:%M %p')
-
-        data['data'].append(('Last seen', '5', date))
+        data['data'].append(('Last seen', '5', obj.last_seen))
         return data
 
     from cyder.base.tablefier import Tablefier
