@@ -41,6 +41,8 @@ function enableEditableGrid(allPostData) {
         data['row'] = row;
         data['postData'] = postData;
         data['url'] = $(row).attr('data-url');
+        data['oldValue'] = oldValue;
+        data['newValue'] = newValue;
         allPostData.push(data);
     };
     editableGrid.attachToHTMLTable('egtable');
@@ -69,15 +71,20 @@ $(document).ready(function() {
             });
             $('#action-bar').append('<a id="eg_submit" class="btn" href="#">Submit</a>');
             $('#eg_submit').click( function() {
+                var confirm_str = "Are you sure you want to make these changes:\n";
                 jQuery.each(allPostData, function(i, data) {
-                    $.post(data.url, data.postData, function(resp) {
-                        if (resp && resp.error) {
-                            $(data.row).after($('<tr></tr>').html(resp.error));
-                        }
-                    }, 'json');
+                    confirm_str += data.oldValue + " -> " + data.newValue + ",\n";
                 });
+                if (confirm(confirm_str)) {
+                    jQuery.each(allPostData, function(i, data) {
+                        $.post(data.url, data.postData, function(resp) {
+                            if (resp && resp.error) {
+                                $(data.row).after($('<tr></tr>').html(resp.error));
+                            }
+                        }, 'json');
+                    });
+                };
             });
-
         });
     }
 });
