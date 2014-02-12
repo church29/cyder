@@ -76,10 +76,13 @@ $(document).ready(function() {
                     confirm_str += data.oldValue + " -> " + data.newValue + ",\n";
                 });
                 if (confirm(confirm_str)) {
+                    $('.errors').each(function() {
+                        $(this).remove();
+                    });
                     jQuery.each(allPostData, function(i, data) {
                         $.post(data.url, data.postData, function(resp) {
                             if (resp && resp.error) {
-                                $(data.row).after($('<tr></tr>').html(resp.error));
+                                $(data.row).after($('<tr class="errors"></tr>').html(resp.error));
                             }
                         }, 'json');
                     });
