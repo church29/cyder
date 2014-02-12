@@ -1,4 +1,4 @@
-function enableEditableGrid() {
+function enableEditableGrid(allPostData) {
     var $eg = $('#eg');
     var csrfToken = $('#view-metadata').attr('data-csrfToken');
     if (!$eg) {
@@ -35,13 +35,13 @@ function enableEditableGrid() {
         can be validated and the object can be updated.
         */
         var postData = {};
+        var data = {};
         postData[editableGrid.getColumnName(columnIndex)] = newValue;
         postData['csrfmiddlewaretoken'] = csrfToken;
-        $.post($(row).attr('data-url'), postData, function(resp) {
-            if (resp && resp.error) {
-                $(row).after($('<tr></tr>').html(resp.error[0]));
-            }
-        }, 'json');
+        data['row'] = row;
+        data['postData'] = postData;
+        data['url'] = $(row).attr('data-url');
+        allPostData.push(data);
     };
     editableGrid.attachToHTMLTable('egtable');
     editableGrid.renderGrid();
@@ -49,6 +49,7 @@ function enableEditableGrid() {
 
 
 $(document).ready(function() {
+    var allPostData = [];
     var $enableEg = $('#enable-eg');
     if ($enableEg.length) {
         $enableEg[0].reset();
@@ -57,12 +58,26 @@ $(document).ready(function() {
         $enableEg.find('input').removeAttr('disabled').change(function() {
             $this = $(this);
             if ($this.attr('checked')) {
-                enableEditableGrid();
+                enableEditableGrid(allPostData);
                 $this.attr('disabled', true);
             }
 
             $('#enable-eg').remove();
             $('.spreadsheet-mode').show();
+            $('#action-bar').find('a').each(function() {
+                $(this).css('display', 'none')
+            });
+            $('#action-bar').append('<a id="eg_submit" class="btn" href="#">Submit</a>');
+            $('#eg_submit').click( function() {
+                jQuery.each(allPostData, function(i, data) {
+                    $.post(data.url, data.postData, function(resp) {
+                        if (resp && resp.error) {
+                            $(data.row).after($('<tr></tr>').html(resp.error));
+                        }
+                    }, 'json');
+                });
+            });
+
         });
     }
 });

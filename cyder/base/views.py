@@ -456,7 +456,7 @@ def table_update(request, pk, obj_type=None):
     if form.is_valid():
         form.save()
         return HttpResponse()
-    return HttpResponse(json.dumps({'error': form.errors}))
+    return HttpResponse(json.dumps({'error': str(form.errors)}))
 
 
 class BaseListView(ListView):
