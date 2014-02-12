@@ -51,6 +51,7 @@ function enableEditableGrid(allPostData) {
 
 
 $(document).ready(function() {
+    $.ajaxSetup({async:false});
     var allPostData = [];
     var $enableEg = $('#enable-eg');
     if ($enableEg.length) {
@@ -79,12 +80,18 @@ $(document).ready(function() {
                     $('.errors').each(function() {
                         $(this).remove();
                     });
+                    var successIndex = [];
                     jQuery.each(allPostData, function(i, data) {
                         $.post(data.url, data.postData, function(resp) {
                             if (resp && resp.error) {
                                 $(data.row).after($('<tr class="errors"></tr>').html(resp.error));
-                            }
+                            } else {
+                                successIndex.push(i);
+                            };
                         }, 'json');
+                    });
+                    jQuery.each(successIndex, function(i, index) {
+                        allPostData.splice(index, 1);
                     });
                 };
             });
