@@ -81,18 +81,24 @@ $(document).ready(function() {
                         $(this).remove();
                     });
                     var successIndex = [];
+                    var success = true;
                     jQuery.each(allPostData, function(i, data) {
                         $.post(data.url, data.postData, function(resp) {
                             if (resp && resp.error) {
                                 $(data.row).after($('<tr class="errors"></tr>').html(resp.error));
+                                success = false;
                             } else {
                                 successIndex.push(i);
                             };
                         }, 'json');
                     });
-                    jQuery.each(successIndex, function(i, index) {
-                        allPostData.splice(index, 1);
-                    });
+                    if (success) {
+                        location.reload();
+                    } else {
+                        jQuery.each(successIndex, function(i, index) {
+                            allPostData.splice(index, 1);
+                        });
+                    };
                 };
             });
         });
