@@ -29,7 +29,7 @@ from cyder.base.forms import BugReportForm, EditUserForm
 from cyder.core.cyuser.views import edit_user
 from cyder.core.ctnr.models import CtnrUser
 
-import cyder.settings
+import settings
 
 
 def home(request):
