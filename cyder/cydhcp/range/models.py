@@ -9,6 +9,7 @@ from cyder.base.eav.fields import EAVAttributeField
 from cyder.base.eav.models import Attribute, EAVBase
 from cyder.base.mixins import ObjectUrlMixin
 from cyder.base.models import BaseModel
+from cyder.base.utils import simple_descriptor
 from cyder.cydns.validation import validate_ip_type
 from cyder.cydhcp.constants import (ALLOW_OPTIONS, ALLOW_ANY, ALLOW_KNOWN,
                                     ALLOW_LEGACY, ALLOW_VRF, RANGE_TYPE,
@@ -50,6 +51,19 @@ class Range(BaseModel, ViewMixin, ObjectUrlMixin):
             existing range's `start` and `end` values to make sure that the new
             range does not overlap.
     """
+
+    @property
+    def pretty_name(self):
+        return u'{0} – {1}'.format(self.start_str, self.end_str)
+
+    @simple_descriptor
+    def pretty_type(self, obj, type):
+        if not obj:
+            return 'range'
+        elif obj.range_type == STATIC:
+            return 'static range'
+        else:  # DYNAMIC
+            return 'dynamic range'
 
     id = models.AutoField(primary_key=True)
     network = models.ForeignKey(Network, null=False, blank=False)
@@ -114,8 +128,8 @@ class Range(BaseModel, ViewMixin, ObjectUrlMixin):
         else:
             range_str = self.range_str
 
-        if add_name:
-            name = u' ' + self.name if self.name else u''
+        if add_name and self.name:
+            name = u' ({0})'.format(self.name)
         else:
             name = u''
 
@@ -394,11 +408,7 @@ class Range(BaseModel, ViewMixin, ObjectUrlMixin):
             return ""
 
         DEFAULT_TTL = 3600
-        if kwargs.pop('reverse', False):
-            template = ("$GENERATE {3:>3}-{4:<3}  {1:44} {2}  IN  PTR     {0}")
-        else:
-            template = ("$GENERATE {3:>3}-{4:<3}  {0:44} {2}  IN  A       {1}")
-
+        reverse = kwargs.pop('reverse', False)
         built = ""
         start = map(int, self.start_str.split("."))
         end = map(int, self.end_str.split("."))
@@ -412,7 +422,15 @@ class Range(BaseModel, ViewMixin, ObjectUrlMixin):
                     d1 = start[3] if (a, b, c) == tuple(start[:3]) else 0
                     d2 = end[3] if (a, b, c) == tuple(end[:3]) else 255
                     host = "{0}-{1}-{2}-$.{3}.".format(a, b, c, self.domain)
-                    ip = "{0}.{1}.{2}.$".format(a, b, c)
+                    if reverse:
+                        ip = "$.{2}.{1}.{0}.in-addr.arpa.".format(a, b, c)
+                        template = ("$GENERATE {3:>3}-{4:<3}  {1:44} {2}  "
+                                    "IN  PTR     {0}")
+                    else:
+                        ip = "{0}.{1}.{2}.$".format(a, b, c)
+                        template = ("$GENERATE {3:>3}-{4:<3}  {0:44} {2}  "
+                                    "IN  A       {1}")
+
                     rec = template.format(host, ip, DEFAULT_TTL, d1, d2)
                     built = "\n".join([built, rec]).strip()
 

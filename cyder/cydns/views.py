@@ -3,61 +3,23 @@ from django.forms.util import ErrorDict, ErrorList
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from cyder.base.constants import ACTION_CREATE
+from cyder.base.constants import ACTION_CREATE, get_klasses
 from cyder.base.mixins import UsabilityFormMixin
 from cyder.base.helpers import do_sort
 from cyder.base.utils import (make_paginator, _filter, tablefy)
 from cyder.base.views import (BaseCreateView, BaseDeleteView,
                               BaseDetailView, BaseListView, BaseUpdateView,
-                              cy_delete, get_update_form, search_obj,
-                              table_update)
+                              cy_delete, search_obj, table_update)
 from cyder.core.cyuser.utils import perm
 
 from cyder.cydns.constants import DNS_EAV_MODELS
-from cyder.cydns.address_record.forms import (AddressRecordForm,
-                                              AddressRecordFQDNForm)
-from cyder.cydns.address_record.models import AddressRecord
-from cyder.cydns.cname.forms import CNAMEForm, CNAMEFQDNForm
-from cyder.cydns.cname.models import CNAME
-from cyder.cydns.domain.models import Domain
-from cyder.cydns.domain.forms import DomainForm
-from cyder.cydns.mx.forms import FQDNMXForm, MXForm
-from cyder.cydns.mx.models import MX
-from cyder.cydns.nameserver.forms import NameserverForm
-from cyder.cydns.nameserver.models import Nameserver
-from cyder.cydns.ptr.forms import PTRForm
-from cyder.cydns.ptr.models import PTR
-from cyder.cydns.soa.forms import SOAForm, SOAAVForm
-from cyder.cydns.soa.models import SOA, SOAAV
-from cyder.cydns.sshfp.forms import FQDNSSHFPForm, SSHFPForm
-from cyder.cydns.sshfp.models import SSHFP
-from cyder.cydns.srv.forms import SRVForm, FQDNSRVForm
-from cyder.cydns.srv.models import SRV
-from cyder.cydns.txt.forms import FQDNTXTForm, TXTForm
-from cyder.cydns.txt.models import TXT
 from cyder.cydns.utils import ensure_label_domain, prune_tree, slim_form
 
 import json
 
 
-def get_klasses(obj_type):
-    """
-    Given record type string, grab its class and forms.
-    """
-    return {
-        'address_record': (AddressRecord, AddressRecordForm,
-                           AddressRecordFQDNForm),
-        'cname': (CNAME, CNAMEForm, CNAMEFQDNForm),
-        'domain': (Domain, DomainForm, DomainForm),
-        'mx': (MX, MXForm, FQDNMXForm),
-        'nameserver': (Nameserver, NameserverForm, NameserverForm),
-        'ptr': (PTR, PTRForm, PTRForm),
-        'soa': (SOA, SOAForm, SOAForm),
-        'soa_av': (SOAAV, SOAAVForm, SOAAVForm),
-        'srv': (SRV, SRVForm, FQDNSRVForm),
-        'sshfp': (SSHFP, SSHFPForm, FQDNSSHFPForm),
-        'txt': (TXT, TXTForm, FQDNTXTForm),
-    }.get(obj_type, (None, None, None))
+def is_ajax_form(request):
+    return True
 
 
 def cydns_view(request, pk=None):
@@ -66,43 +28,34 @@ def cydns_view(request, pk=None):
     # kwargs everywhere in the dispatchers.
     obj_type = request.path.split('/')[2]
 
-    # Get the record form.
-    Klass, FormKlass, FQDNFormKlass = get_klasses(obj_type)
-
-    # Get the object if updating.
-    record = get_object_or_404(Klass, pk=pk) if pk else None
-    form = FormKlass(instance=record)
+    Klass, FormKlass = get_klasses(obj_type)
+    obj = get_object_or_404(Klass, pk=pk) if pk else None
 
     if request.method == 'POST':
+        object_table = None
+        page_obj = None
+
         qd, domain, errors = _fqdn_to_domain(request.POST.copy())
         # Validate form.
         if errors:
-
             form = FormKlass(request.POST)
             form._errors = ErrorDict()
             form._errors['__all__'] = ErrorList(errors)
-            if obj_type in DNS_EAV_MODELS:
+            if is_ajax_form(request):
                 return HttpResponse(json.dumps({'errors': form.errors}))
-
-            return render(request, 'cydns/cydns_view.html', {
-                'form': form,
-                'obj_type': obj_type,
-                'pk': pk,
-                'obj': record
-            })
         else:
-            form = FormKlass(qd, instance=record)
+            form = FormKlass(qd, instance=obj)
         try:
-            if perm(request, ACTION_CREATE, obj=record, obj_class=Klass):
-                record = form.save()
+            if perm(request, ACTION_CREATE, obj=obj, obj_class=Klass):
+                obj = form.save()
                 # If domain, add to current ctnr.
-                if obj_type in DNS_EAV_MODELS:
+                if is_ajax_form(request):
                     return HttpResponse(json.dumps({'success': True}))
 
-                if (hasattr(record, 'ctnr_set') and
-                        not record.ctnr_set.all().exists()):
-                    record.ctnr_set.add(request.session['ctnr'])
-                    return redirect(record.get_list_url())
+                if (hasattr(obj, 'ctnr_set') and
+                        not obj.ctnr_set.all().exists()):
+                    obj.ctnr_set.add(request.session['ctnr'])
+                    return redirect(obj.get_list_url())
 
         except (ValidationError, ValueError), e:
             form = _revert(domain, request.POST, form, FormKlass)
@@ -113,22 +66,24 @@ def cydns_view(request, pk=None):
                 form._errors = ErrorDict()
                 form._errors['__all__'] = ErrorList(e)
 
-            if obj_type in DNS_EAV_MODELS:
+            if is_ajax_form(request):
                 return HttpResponse(json.dumps({'errors': form.errors}))
+    elif request.method == 'GET':
+        form = FormKlass(instance=obj)
 
-    object_list = _filter(request, Klass)
-    page_obj = make_paginator(
-        request, do_sort(request, object_list), 50)
+        object_list = _filter(request, Klass)
+        page_obj = make_paginator(request, do_sort(request, object_list), 50)
 
     if issubclass(type(form), UsabilityFormMixin):
         form.make_usable(request)
 
     return render(request, 'cydns/cydns_view.html', {
         'form': form,
-        'obj': record,
-        'page_obj': page_obj,
-        'object_table': tablefy(page_obj, request=request),
+        'obj': obj,
         'obj_type': obj_type,
+        'object_table': tablefy(page_obj, request=request),
+        'page_obj': page_obj,
+        'pretty_obj_type': Klass.pretty_type,
         'pk': pk,
     })
 
@@ -156,16 +111,12 @@ def _fqdn_to_domain(qd):
     return qd, domain, None
 
 
-def cydns_get_update_form(request):
-    return get_update_form(request, get_klasses)
-
-
 def cydns_table_update(request, pk, object_type=None):
-    return table_update(request, pk, get_klasses, object_type)
+    return table_update(request, pk, object_type)
 
 
 def cydns_search_obj(request):
-    return search_obj(request, get_klasses)
+    return search_obj(request)
 
 
 def cydns_index(request):

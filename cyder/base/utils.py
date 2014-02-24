@@ -1,3 +1,4 @@
+import distutils.dir_util
 import operator
 import os
 import shlex
@@ -11,6 +12,11 @@ from django.db.models import Q
 from django.db.models.loading import get_model
 
 from cyder.base.tablefier import Tablefier
+
+
+def copy_tree(*args, **kwargs):
+    distutils.dir_util._path_created = {}
+    distutils.dir_util.copy_tree(*args, **kwargs)
 
 
 def shell_out(command, use_shlex=True):
@@ -31,10 +37,8 @@ def shell_out(command, use_shlex=True):
 def log(msg, log_level='LOG_DEBUG', to_syslog=False, to_stderr=True,
         logger=syslog):
     msg = unicode(msg)
-
-    ll = getattr(logger, log_level)
-
     if to_syslog:
+        ll = getattr(logger, log_level)
         for line in msg.splitlines():
             logger.syslog(ll, line)
     if to_stderr:
@@ -161,3 +165,24 @@ def remove_dir_contents(dir_name):
             shutil.rmtree(file_path)
         else:
             os.remove(file_path)
+
+
+class classproperty(property):
+    """Enables you to make a classmethod a property"""
+    def __get__(self, cls, obj):
+        return self.fget.__get__(None, obj)()
+
+
+def simple_descriptor(func):
+    class SimpleDescriptor(object):
+        pass
+    SimpleDescriptor.__get__ = func
+
+    return SimpleDescriptor()
+
+
+def django_pretty_type(obj_type):
+    if obj_type == 'user':
+        return 'user'
+    else:
+        return None
