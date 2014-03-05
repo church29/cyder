@@ -55,6 +55,14 @@ $(document).ready(function() {
     if ($enableEg.length) {
         $enableEg[0].reset();
 
+        $('.exit-spreadsheet').click( function(e) {
+            e.preventDefault();
+            if (confirm('Are you sure you want to exit spreadsheet mode? ' +
+                    'Your changes will not be submitted')) {
+                location.reload();
+           };
+        });
+
         // Enable editable grid on checkbox.
         $enableEg.find('input').removeAttr('disabled').change(function() {
             $this = $(this);
