@@ -6,15 +6,13 @@ function enableEditableGrid(allPostData) {
     }
 
     // Remove Action column.
-    if ($('th:contains("Actions")')) {
-        $('th:contains("Actions")').remove();
-        $('td:last-child').remove();
+    if ($('.actions_column')) {
+        $('.actions_column').remove();
     }
 
     // Remove Info column.
-    if ($('th:contains("Info")')) {
-        $('th:contains("Info")').remove();
-        $('td:first-child').remove();
+    if ($('.info_column')) {
+        $('.info_column').remove();
     }
 
     // Strip links and paragraph tags, remove table cell markdown until
