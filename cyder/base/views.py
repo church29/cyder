@@ -138,10 +138,12 @@ def send_email(request):
 def cy_view(request, template, pk=None, obj_type=None):
     """List, create, update view in one for a flatter heirarchy. """
     # Infer obj_type from URL, saves trouble of having to specify
+    # kwargs everywhere in the dispatchers.
     obj_type = obj_type or request.path.split('/')[2]
 
     Klass, FormKlass = get_klasses(obj_type)
     obj = get_object_or_404(Klass, pk=pk) if pk else None
+    form = None
     if request.method == 'POST':
         object_table = None
         page_obj = None
@@ -159,24 +161,21 @@ def cy_view(request, template, pk=None, obj_type=None):
                             not obj.ctnr_set.all().exists()):
                         obj.ctnr_set.add(request.session['ctnr'])
 
-                    # Adjust this if statement to submit forms with ajax
-                    if obj_type.endswith('_av'):
-                        return HttpResponse(json.dumps({'success': True}))
-
-                    return redirect(
-                        request.META.get('HTTP_REFERER', obj.get_list_url()))
+                    return HttpResponse(json.dumps({'success': True}))
 
             except (ValidationError, ValueError) as e:
                 if form._errors is None:
                     form._errors = ErrorDict()
                 form._errors["__all__"] = ErrorList(e.messages)
 
-        # Adjust this if statement to submit forms with ajax
-        elif obj_type.endswith('_av'):
+        else:
             return HttpResponse(json.dumps({'errors': form.errors}))
     elif request.method == 'GET':
-        form = FormKlass(instance=obj)
         object_list = _filter(request, Klass)
+
+        if 'interface' not in obj_type or object_list.exists():
+            form = FormKlass(instance=obj)
+
 
         if obj_type == 'system' and not object_list.exists():
             return redirect(reverse('system-create'))
@@ -217,7 +216,7 @@ def static_dynamic_view(request):
         if isinstance(obj, StaticInterface):
             data['data'].append(('System', '1', obj.system))
             data['data'].append(('Type', '2', 'static'))
-            data['data'].append(('MAC', '3', obj.mac_str))
+            data['data'].append(('MAC', '3', obj.mac))
             data['data'].append(('IP', '4', obj.ip_str))
         elif isinstance(obj, DynamicInterface):
             data['data'].append(('System', '1', obj.system))
@@ -255,7 +254,6 @@ def cy_delete(request):
 
     obj_type = request.POST.get('obj_type', None)
     pk = request.POST.get('pk', None)
-
     Klass, _ = get_klasses(obj_type)
     obj = Klass.objects.filter(id=pk)
     if obj.exists():
