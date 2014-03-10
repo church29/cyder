@@ -78,9 +78,9 @@ $(document).ready(function() {
             });
             $('#action-bar').append('<a id="eg_submit" class="btn" href="#">Submit</a>');
             $('#eg_submit').click( function() {
-                var confirm_str = "Are you sure you want to make these changes:\n";
+                var confirm_str = "Are you sure you want to make the following changes?\n";
                 jQuery.each(allPostData, function(i, data) {
-                    confirm_str += data.oldValue + " -> " + data.newValue + ",\n";
+                    confirm_str += data.oldValue + " -> " + data.newValue + "\n";
                 });
                 if (confirm(confirm_str)) {
                     $('.errors').each(function() {
