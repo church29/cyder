@@ -88,9 +88,6 @@ $(document).ready(function() {
                     });
                     var successIndex = [];
                     var success = true;
-                    var error_str = '';
-                    var substr1_end;
-                    var substr2_start;
                     jQuery.each(allPostData, function(i, data) {
                         $.post(data.url, data.postData, function(resp) {
                             if (resp && resp.error) {
