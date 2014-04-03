@@ -436,8 +436,9 @@ def table_update(request, pk, obj_type=None):
     obj = get_object_or_404(Klass, pk=pk)
 
     if not perm_soft(request, ACTION_UPDATE, obj=obj):
-        return HttpResponse(json.dumps({'error': 'You do not have appropriate'
-                                                 ' permissions.'}))
+        return HttpResponse(json.dumps({
+            'error': {'__all__': [u'You do not have'
+                                  ' appropriate permissions.']}}))
 
     # DNS specific.
     qd = request.POST.copy()
@@ -447,14 +448,16 @@ def table_update(request, pk, obj_type=None):
             # Call prune tree later if error, else domain leak.
             label, domain = ensure_label_domain(fqdn)
         except ValidationError, e:
-            return HttpResponse(json.dumps({'error': e.messages}))
+            return HttpResponse(
+                json.dumps({'error': {'__all__': [e.messages]}}))
         qd['label'], qd['domain'] = label, str(domain.pk)
 
     form = FormKlass(qd, instance=obj)
     if form.is_valid():
         form.save()
         return HttpResponse()
-    return HttpResponse(json.dumps({'error': str(form.errors)}))
+    #import pdb; pdb.set_trace()
+    return HttpResponse(json.dumps({'error': (form.errors)}))
 
 
 class BaseListView(ListView):

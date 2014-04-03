@@ -88,10 +88,23 @@ $(document).ready(function() {
                     });
                     var successIndex = [];
                     var success = true;
+                    var error_str = '';
+                    var substr1_end;
+                    var substr2_start;
                     jQuery.each(allPostData, function(i, data) {
                         $.post(data.url, data.postData, function(resp) {
                             if (resp && resp.error) {
-                                $(data.row).after($('<tr class="errors"></tr>').html(resp.error));
+                                jQuery.each(resp.error, function(field, error) {
+                                    if (field == '__all__') {
+                                        alert(error);
+                                    } else {
+                                        field = $(data.row).find('.' + field + '_column');
+                                        if (field.find('font')) {
+                                            field.find('font').remove();
+                                        };
+                                        field.append('<font color="red"> ' + err + '</font>');
+                                    };
+                                });
                                 success = false;
                             } else {
                                 successIndex.push(i);
