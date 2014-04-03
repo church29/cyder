@@ -99,10 +99,7 @@ $(document).ready(function() {
                                         alert(error);
                                     } else {
                                         field = $(data.row).find('.' + field + '_column');
-                                        if (field.find('font')) {
-                                            field.find('font').remove();
-                                        };
-                                        field.append('<font color="red"> ' + err + '</font>');
+                                        field.append('<font class="errors" color="red"> ' + error + '</font>');
                                     };
                                 });
                                 success = false;
