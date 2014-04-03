@@ -1,4 +1,5 @@
 import simplejson as json
+from copy import copy
 
 from django import forms
 from django.contrib import messages
@@ -29,7 +30,7 @@ from cyder.base.forms import BugReportForm, EditUserForm
 from cyder.core.cyuser.views import edit_user
 from cyder.core.ctnr.models import CtnrUser
 
-import cyder.settings
+from cyder.settings import BUG_REPORT_EMAIL
 
 
 def home(request):
@@ -111,7 +112,7 @@ def send_email(request):
                 + request.POST.get('session_data', ''))
             try:
                 send_mail(subject, message, from_email,
-                          [settings.BUG_REPORT_EMAIL])
+                          [BUG_REPORT_EMAIL])
                 return redirect(reverse('core-index'))
 
             except BadHeaderError:
@@ -165,17 +166,18 @@ def cy_view(request, template, pk=None, obj_type=None):
                     return HttpResponse(json.dumps({'success': True}))
 
             except (ValidationError, ValueError) as e:
-                if form._errors is None:
-                    form._errors = ErrorDict()
-                form._errors["__all__"] = ErrorList(e.messages)
+                if form.errors is None:
+                    form.errors = ErrorDict()
+                form.errors.update(e.message_dict)
+                return HttpResponse(json.dumps({'errors': form.errors}))
 
         else:
             return HttpResponse(json.dumps({'errors': form.errors}))
     elif request.method == 'GET':
-        if 'interface' not in obj_type:
-            form = FormKlass(instance=obj)
-
         object_list = _filter(request, Klass)
+
+        if 'interface' not in obj_type or object_list.exists():
+            form = FormKlass(instance=obj)
 
         if obj_type == 'system' and not object_list.exists():
             return redirect(reverse('system-create'))
@@ -222,7 +224,7 @@ def static_dynamic_view(request):
         if isinstance(obj, StaticInterface):
             data['data'].append(('System', '1', obj.system))
             data['data'].append(('Type', '2', 'static'))
-            data['data'].append(('MAC', '3', obj.mac_str))
+            data['data'].append(('MAC', '3', obj.mac))
             data['data'].append(('IP', '4', obj.ip_str))
         elif isinstance(obj, DynamicInterface):
             data['data'].append(('System', '1', obj.system))
@@ -368,8 +370,14 @@ def get_update_form(request):
                 except:     # no 'entity' field
                     pass
 
-                form = FormKlass(initial=dict(
-                    {related_type: related_pk}.items() + kwargs.items()))
+                initial = copy(kwargs)
+                initial[related_type] = related_pk
+                if 'ctnr' in FormKlass.base_fields:
+                    initial['ctnr'] = request.session['ctnr']
+                form = FormKlass(initial=initial)
+                if 'ctnr' in FormKlass.base_fields and \
+                        request.session['ctnr'].name != 'global':
+                    form.fields['ctnr'].widget = forms.HiddenInput()
 
                 if related_type == 'range' and not obj_type.endswith('_av'):
                     for field in ['vrf', 'site', 'next_ip']:

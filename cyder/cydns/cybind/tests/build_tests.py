@@ -5,7 +5,7 @@ from django.test import TestCase
 from time import sleep
 
 from cyder.base.utils import remove_dir_contents
-from cyder.base.vcs import GitRepo, SanityCheckFailure
+from cyder.base.vcs import GitRepo, GitRepoManager, SanityCheckFailure
 from cyder.core.ctnr.models import Ctnr
 from cyder.core.system.models import System
 from cyder.cydhcp.interface.static_intr.models import StaticInterface
@@ -48,13 +48,14 @@ class DNSBuildTest(TestCase):
             os.makedirs(PROD_ORIGIN_DIR)
         remove_dir_contents(PROD_ORIGIN_DIR)
 
-        repo_origin = GitRepo(PROD_ORIGIN_DIR)
-        repo_origin.init(bare=True)
-
-        GitRepo.clone(PROD_ORIGIN_DIR, BINDBUILD['prod_dir'])
+        mgr = GitRepoManager(debug=False, log_syslog=False, config={
+            'user.name': 'test',
+            'user.email': 'test',
+        })
+        mgr.init(PROD_ORIGIN_DIR, bare=True)
+        mgr.clone(PROD_ORIGIN_DIR, BINDBUILD['prod_dir'])
 
         self.builder = DNSBuilder(verbose=False, debug=False, **BINDBUILD)
-
         self.builder.repo.commit_and_push(empty=True,
                                           message='Initial commit')
 
@@ -113,6 +114,7 @@ class DNSBuildTest(TestCase):
             label='www3',
             domain=Domain.objects.get(name='example.com'),
             ip_str='192.168.0.50',
+            mac='01:23:45:01:23:45',
             ctnr=Ctnr.objects.get(name='Global')
         )
         s.full_clean()
