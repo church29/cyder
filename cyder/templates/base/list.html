@@ -29,7 +29,7 @@
   {% if obj_type_perm %}
     {% if page_obj and has_attr(page_obj[0], 'eg_metadata') %}
       <div class="editable-grid">
-        {% if pretty_obj_type in ["Static Interface", "Dynamic Interface"] %}
+        {% if pretty_obj_type in ["static interface", "dynamic interface"] %}
           <form id="enable-batch-update">
             <input type="checkbox" name="batch" id="enable-batch-check">
             <label for="enable-batch-check">Enter batch update mode</label>
