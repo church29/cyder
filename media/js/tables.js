@@ -41,7 +41,7 @@ function enableEditableGrid(allPostData) {
         data['url'] = $(row).attr('data-url');
         data['oldValue'] = oldValue;
         data['newValue'] = newValue;
-        allPostData.push(data);
+        allPostData[rowIndex + '-' + columnIndex] = data;
     };
     editableGrid.attachToHTMLTable('egtable');
     editableGrid.renderGrid();
@@ -50,7 +50,7 @@ function enableEditableGrid(allPostData) {
 
 $(document).ready(function() {
     $.ajaxSetup({async:false});
-    var allPostData = [];
+    var allPostData = {};
     var $enableEg = $('#enable-eg');
     if ($enableEg.length) {
         $enableEg[0].reset();
@@ -88,7 +88,7 @@ $(document).ready(function() {
                     });
                     var successIndex = [];
                     var success = true;
-                    jQuery.each(allPostData, function(i, data) {
+                    jQuery.each(allPostData, function(key, data) {
                         $.post(data.url, data.postData, function(resp) {
                             if (resp && resp.error) {
                                 jQuery.each(resp.error, function(field, error) {
@@ -101,15 +101,15 @@ $(document).ready(function() {
                                 });
                                 success = false;
                             } else {
-                                successIndex.push(i);
+                                successIndex.push(key);
                             };
                         }, 'json');
                     });
                     if (success) {
                         location.reload();
                     } else {
-                        jQuery.each(successIndex, function(i, index) {
-                            allPostData.splice(index, 1);
+                        jQuery.each(successIndex, function(index, key) {
+                            delete allPostData[key];
                         });
                     };
                 };
