@@ -93,10 +93,16 @@ $(document).ready(function() {
                             if (resp && resp.error) {
                                 jQuery.each(resp.error, function(field, error) {
                                     if (field == '__all__') {
-                                        alert(error);
+                                        $(data.row).after(
+                                            '<tr class="errors"><td><font '
+                                            + 'color="red">' + error +
+                                            '</font></td></tr>');
                                     } else {
-                                        field = $(data.row).find('.' + field + '_column');
-                                        field.append('<font class="errors" color="red"> ' + error + '</font>');
+                                        field = $(data.row).find(
+                                            '.' + field + '_column');
+                                        field.append(
+                                            '<font class="errors" color="red"> '
+                                            + error + '</font>');
                                     };
                                 });
                                 success = false;
