@@ -434,7 +434,6 @@ def table_update(request, pk, obj_type=None):
 
     Klass, FormKlass = get_klasses(obj_type)
     obj = get_object_or_404(Klass, pk=pk)
-
     if not perm_soft(request, ACTION_UPDATE, obj=obj):
         return HttpResponse(json.dumps({
             'error': {'__all__': [u'You do not have'
@@ -456,7 +455,7 @@ def table_update(request, pk, obj_type=None):
     if form.is_valid():
         form.save()
         return HttpResponse()
-    #import pdb; pdb.set_trace()
+
     return HttpResponse(json.dumps({'error': (form.errors)}))
 
 
