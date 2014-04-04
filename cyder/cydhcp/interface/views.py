@@ -69,7 +69,7 @@ def batch_update(request):
             'error': 'That range does not exist'}))
 
     same_type = intr_type[:2] == rng.range_type
-    Interface = get_model('cyder', intr_type)
+    Interface = get_model('cyder', ('').join(intr_type.split())[:-1])
     interfaces = request.POST['interfaces'].split(',')
     interface_qs = Interface.objects.filter(pk__in=interfaces)
     if rng.range_type == 'st':
