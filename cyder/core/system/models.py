@@ -44,6 +44,10 @@ class System(BaseModel, ObjectUrlMixin):
         ]
         return data
 
+    def save(self):
+        self.name = self.name.lower()
+        super(System, self).save()
+
     def delete(self):
         DynamicInterface = get_model('cyder', 'dynamicinterface')
         for interface in DynamicInterface.objects.filter(system=self):
