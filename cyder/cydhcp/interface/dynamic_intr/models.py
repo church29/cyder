@@ -133,7 +133,6 @@ class DynamicInterface(BaseModel, ObjectUrlMixin, ExpirableMixin):
             rng.save()
 
     def save(self, *args, **kwargs):
-        self.name = self.name.lower()
         update_range_usage = kwargs.pop('update_range_usage', True)
         old_range = None
         if self.id is not None:
