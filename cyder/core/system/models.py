@@ -44,7 +44,7 @@ class System(BaseModel, ObjectUrlMixin):
         ]
         return data
 
-    def save(self):
+    def save(self, *args, **kwargs):
         self.name = self.name.lower()
         super(System, self).save()
 
