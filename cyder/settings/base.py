@@ -455,6 +455,14 @@ REVERSE_DOMAINS = [
     '127', '131.80.252.131', '5.68.98.207'
 ]
 
+REVERSE_SOAS = [
+    '10', '193.128', '18.211.140', '139.201.199', '0.0.127',
+]
+
+NONAUTHORITATIVE_DOMAINS = [
+    'nero.net', 'peak.org', 'orvsd.org', 'pdx.orvsd.org',
+]
+
 VERIFICATION_SERVER = "ns1.oregonstate.edu"
 ZONES_FILE = "/tmp/dns_prod/cyzones/config/master.public"
 ZONE_PATH = "cyder/management/commands/lib/zones"
@@ -462,7 +470,8 @@ ZONE_BLACKLIST = []
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
-        'cyder.api.v1.permissions.ReadOnlyIfAuthenticated',
+        # 'cyder.api.v1.permissions.ReadOnlyIfAuthenticated',
+        'cyder.api.v1.permissions.ReadOnlyIfAuthenticatedWriteIfSpecialCase',
     ),
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'cyder.api.v1.authentication.CyderTokenAuthentication',
@@ -550,6 +559,7 @@ DHCPBUILD = {
 
 
 DATETIME_INPUT_FORMATS = (
+    '%m/%d/%y',              # '10/25/06'
     '%m/%d/%y %H:%M',
     '%Y-%m-%d %H:%M:%S',     # '2006-10-25 14:30:59'
     '%Y-%m-%d %H:%M',        # '2006-10-25 14:30'
@@ -558,7 +568,6 @@ DATETIME_INPUT_FORMATS = (
     '%m/%d/%Y %H:%M',        # '10/25/2006 14:30'
     '%m/%d/%Y',              # '10/25/2006'
     '%m/%d/%y %H:%M:%S',     # '10/25/06 14:30:59'
-    '%m/%d/%y',              # '10/25/06'
 )
 
 ###############################
