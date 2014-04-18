@@ -46,7 +46,7 @@ class System(BaseModel, ObjectUrlMixin):
 
     def clean(self, *args, **kwargs):
         self.name = self.name.lower()
-        super(System, self).clean()
+        super(System, self).clean(*args, **kwargs)
 
     def delete(self):
         DynamicInterface = get_model('cyder', 'dynamicinterface')
