@@ -1,8 +1,4 @@
 from django import forms
-from django.core.exceptions import ValidationError
-
-from cyder.base.eav.constants import ATTRIBUTE_TYPES
-from cyder.base.eav.models import Attribute
 
 
 def get_eav_form(eav_model, entity_model):

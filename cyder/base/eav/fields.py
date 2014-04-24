@@ -27,7 +27,7 @@ class AttributeValueTypeField(models.CharField):
         if self.attribute_type_field is None:
             raise Exception("The 'attribute_type_field' argument is required")
 
-        kwargs['blank'] = False # always run validate()
+        kwargs['blank'] = False  # always run validate()
 
         super(AttributeValueTypeField, self).__init__(*args, **kwargs)
 
@@ -79,7 +79,7 @@ class EAVValueField(models.CharField):
 
     def to_python(self, value):
         if not isinstance(value, unicode):
-            value = value.decode() # force it to unicode; assume ASCII
+            value = value.decode()  # force it to unicode; assume ASCII
 
         value = value.strip()
 
@@ -93,7 +93,7 @@ class EAVValueField(models.CharField):
 
         if attribute.attribute_type in (ATTRIBUTE_OPTION, ATTRIBUTE_STATEMENT):
             try:
-                value.encode('ascii') # ignore the return value
+                value.encode('ascii')  # ignore the return value
             except UnicodeEncodeError:
                 raise ValidationError('DHCP option or statement value can '
                                       'only contain ASCII characters')
@@ -183,19 +183,19 @@ class AttributeFormField(forms.CharField):
 add_introspection_rules(
     [
         (
-            [AttributeValueTypeField], # model
-            [], # args
-            {'attribute_type_field': ('', {'is_value': True})} # kwargs
+            [AttributeValueTypeField],  # model
+            [],  # args
+            {'attribute_type_field': ('', {'is_value': True})}  # kwargs
         ),
         (
-            [EAVValueField], # model
-            [], # args
-            {'attribute_field': ('', {'is_value': True})} # kwargs
+            [EAVValueField],  # model
+            [],  # args
+            {'attribute_field': ('', {'is_value': True})}  # kwargs
         ),
         (
-            [EAVAttributeField], # model
-            [], # args
-            {} # kwargs
+            [EAVAttributeField],  # model
+            [],  # args
+            {}  # kwargs
         )
     ],
     [

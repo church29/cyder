@@ -2,7 +2,8 @@ import re
 from django.core.exceptions import ValidationError
 
 
-default_validator = lambda x: x != '' # FIXME: Do we need this?
+default_validator = lambda x: x != ''  # FIXME: Do we need this?
+
 
 def validate_list(value, validator=default_validator, separator=',',
                   strip_whitespace=True, min_length=0, die=False):

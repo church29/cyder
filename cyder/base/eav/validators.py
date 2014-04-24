@@ -111,7 +111,7 @@ def _is_domain(value):
 def _is_uint(value, bits):
     try:
         value, base = strip_and_get_base(value)
-        if base == 10 and not value.isdigit(): # "performance" hack
+        if base == 10 and not value.isdigit():  # "performance" hack
             return False
         return 0 <= int(value, base) <= (2**bits - 1)
     except ValueError:
@@ -143,6 +143,7 @@ def _int(value, bits):
     if not _is_int(value, bits):
         raise ValidationError("Invalid {0}-bit signed integer '{1}'"
                               .format(bits, value))
+
 
 def _unquote(value):
     if not value[0] == value[-1] == '"':
@@ -183,7 +184,7 @@ _identifier_regex = re.compile(r'^[a-zA-Z0-9-][a-zA-Z0-9_-]*$')
 
 def identifier(value):
     if not (_identifier_regex.match(value) and
-            re.search(r'[a-zA-Z_-]', value)): # at least one non-numeric char
+            re.search(r'[a-zA-Z_-]', value)):  # at least one non-numeric char
         raise ValidationError("Invalid identifier '{0}'".format(value))
 
 
@@ -278,7 +279,7 @@ def host_pair_list(value):
 
 
 def flag_host_list(value):
-    splat = value.split(None, 1) # split on first whitespace
+    splat = value.split(None, 1)  # split on first whitespace
     if len(splat) == 1:
         raise ValidationError("Invalid flag and host list; missing host list"
                               .format(value))
@@ -311,14 +312,14 @@ def ldapmethod(value):
 
 def ldapsslusage(value):
     if value not in ('off', 'on', 'ldaps', 'start_tls'):
-        raise ValidationError("Invalid ldap-ssl-usage value") # FIXME?
+        raise ValidationError("Invalid ldap-ssl-usage value")  # FIXME?
 
 
 def ldaptlsreqcert(value):
     if value not in ('never', 'hard', 'demand', 'allow', 'try'):
-        raise ValidationError("Invalid ldap-tls-reqcert value") # FIXME?
+        raise ValidationError("Invalid ldap-tls-reqcert value")  # FIXME?
 
 
 def ldaptlscrlcheck(value):
     if value not in ('none', 'peer', 'all'):
-        raise ValidationError("Invalid ldap-tls-crlcheck value") # FIXME?
+        raise ValidationError("Invalid ldap-tls-crlcheck value")  # FIXME?
