@@ -66,7 +66,7 @@ class SystemAV(EAVBase):
         app_label = 'cyder'
         db_table = 'system_av'
 
-
     entity = models.ForeignKey(System)
-    attribute = EAVAttributeField(Attribute,
+    attribute = EAVAttributeField(
+        Attribute,
         type_choices=(ATTRIBUTE_INVENTORY,))

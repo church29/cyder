@@ -3,7 +3,7 @@ import simplejson as json
 from copy import copy
 
 from django import forms
-from django.forms.util import ErrorDict, ErrorList
+from django.forms.util import ErrorDict
 from django.core.urlresolvers import reverse
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse

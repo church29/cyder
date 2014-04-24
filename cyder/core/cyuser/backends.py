@@ -4,7 +4,7 @@ from cyder.base.constants import (LEVEL_GUEST, LEVEL_USER, LEVEL_ADMIN,
 
 def has_perm(self, request, action, obj=None, obj_class=None, ctnr=None):
         return _has_perm(request.user, ctnr or request.session['ctnr'], action,
-            obj, obj_class)
+                         obj, obj_class)
 
 
 def _has_perm(user, ctnr, action, obj=None, obj_class=None):
@@ -389,6 +389,7 @@ def has_dynamic_registration_perm(user_level, obj, ctnr, action):
         'user': True,  # ?
         'guest': action == ACTION_VIEW,
     }.get(user_level, False)
+
 
 def has_token_perm(user, obj, ctnr, action):
     """

@@ -1,5 +1,5 @@
 from django import forms
-from django.db.models import CharField, NOT_PROVIDED, SubfieldBase
+from django.db.models import CharField, SubfieldBase
 from django.core.exceptions import ValidationError
 from south.modelsinspector import add_introspection_rules
 
@@ -40,12 +40,13 @@ class MacAddrField(CharField):
 
         if value:
             value = value.lower().replace(':', '').replace('-', '')
-            value = reduce(lambda x,y: x + ':' + y,
+            value = reduce(lambda x, y: x + ':' + y,
                            (value[i:i+2] for i in xrange(0, 12, 2)))
         return value
 
     def clean(self, value, model_instance):
-        value_required = (self.dhcp_enabled is True
+        value_required = (
+            self.dhcp_enabled is True
             or (isinstance(self.dhcp_enabled, basestring) and
                 getattr(model_instance, self.dhcp_enabled)))
 
@@ -70,8 +71,8 @@ class MacAddrField(CharField):
 
 add_introspection_rules([
     (
-        [MacAddrField], # model
-        [], # args
-        {'dhcp_enabled': ('dhcp_enabled', {})}, # kwargs
+        [MacAddrField],  # model
+        [],  # args
+        {'dhcp_enabled': ('dhcp_enabled', {})},  # kwargs
     )
 ], [r'^cyder\.core\.fields\.MacAddrField'])
