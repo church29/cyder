@@ -5,7 +5,6 @@ from string import Template
 from django.core.urlresolvers import NoReverseMatch, reverse
 from django.db.models.loading import get_model
 from django.forms import ModelChoiceField, HiddenInput
-from django import forms
 
 from cyder.base.utils import filter_by_ctnr
 
@@ -139,8 +138,6 @@ class UsabilityFormMixin(object):
     def autoselect_system(self):
         System = get_model('cyder', 'system')
         if 'system' in self.initial:
-            system_name = System.objects.get(
-                pk=int(self.initial['system'])).name
             self.fields['system'] = ModelChoiceField(
                 widget=HiddenInput(),
                 empty_label='',
@@ -168,7 +165,7 @@ class MutexMixin(object):
         if not os.path.exists(os.path.dirname(self.lock_file)):
             os.makedirs(os.path.dirname(self.lock_file))
         self.log_debug("Attempting to lock {0}..."
-                 .format(self.lock_file))
+                       .format(self.lock_file))
 
         self.lock_fd = open(self.lock_file, 'w')
 

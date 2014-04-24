@@ -1,14 +1,13 @@
 import os
 import re
 import syslog
-from os.path import dirname, basename
 
-from cyder.base.utils import set_attrs, dict_merge, log, run_command
+from cyder.base.utils import set_attrs, log, run_command
 
 
 def _log(self, message, log_level='LOG_DEBUG'):
     log(message, log_level=log_level, to_stderr=self.debug,
-            to_syslog=self.log_syslog, logger=self.logger)
+        to_syslog=self.log_syslog, logger=self.logger)
 
 
 def _run_command(self, command, log=True, failure_msg=None,

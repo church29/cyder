@@ -1,7 +1,6 @@
 from django.core.urlresolvers import reverse
-from cyder.base.constants import (DHCP_OBJECTS, DNS_OBJECTS, CORE_OBJECTS,
-                                  ACTION_UPDATE)
-from cyder.base.helpers import prettify_obj_type, cached_property
+from cyder.base.constants import ACTION_UPDATE
+from cyder.base.helpers import cached_property
 
 
 class Tablefier:
@@ -129,7 +128,6 @@ class Tablefier:
 
     @staticmethod
     def build_update_field(obj):
-        obj_type = obj._meta.db_table
         col = {'value': ['Update', 'Delete'],
                'url': [obj.get_update_url(), obj.get_delete_url()],
                'data': [[('pk', obj.id),
@@ -137,8 +135,8 @@ class Tablefier:
                          ('objType', obj._meta.db_table),
                          ('getUrl', reverse('get-update-form')),
                          ('prettyObjType', obj.pretty_type)],
-                         [('kwargs', '{"obj_type": "' + str(obj._meta.db_table)
-                              + '", "pk": "' + str(obj.id) + '"}')]],
+                        [('kwargs', '{"obj_type": "' + str(obj._meta.db_table)
+                          + '", "pk": "' + str(obj.id) + '"}')]],
                'class': ['update', 'delete'],
                'img': ['/media/img/update.png', '/media/img/delete.png']}
         return col

@@ -8,7 +8,7 @@ from django.core.mail import send_mail, BadHeaderError
 from django.core.urlresolvers import reverse
 from django.http import Http404, HttpResponse
 from django.forms import ValidationError, ModelChoiceField, HiddenInput
-from django.forms.util import ErrorList, ErrorDict
+from django.forms.util import ErrorDict
 from django.db import IntegrityError
 from django.db.models import get_model
 from django.shortcuts import (get_object_or_404, redirect, render,

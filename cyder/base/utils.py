@@ -77,7 +77,7 @@ def set_attrs(obj, attrs):
 
 def dict_merge(*dicts):
     """Later keys override earlier ones"""
-    return dict(reduce(lambda x,y: x + y.items(), dicts, []))
+    return dict(reduce(lambda x, y: x + y.items(), dicts, []))
 
 
 def make_paginator(request, qs, num=20, obj_type=None):

@@ -41,8 +41,8 @@ def get_klasses(obj_type):
     from cyder.cydns.cname.forms import CNAMEForm
     from cyder.core.ctnr.forms import CtnrForm
     from cyder.cydns.domain.forms import DomainForm
-    from cyder.cydhcp.interface.dynamic_intr.forms import (DynamicInterfaceForm,
-                                                           DynamicInterfaceAVForm)
+    from cyder.cydhcp.interface.dynamic_intr.forms import (
+        DynamicInterfaceForm, DynamicInterfaceAVForm)
     from cyder.cydns.mx.forms import MXForm
     from cyder.cydns.nameserver.forms import NameserverForm
     from cyder.cydhcp.network.forms import NetworkForm, NetworkAVForm
@@ -53,20 +53,20 @@ def get_klasses(obj_type):
     from cyder.cydns.srv.forms import SRVForm
     from cyder.cydns.sshfp.forms import SSHFPForm
     from cyder.core.system.forms import SystemForm, SystemAVForm
-    from cyder.cydhcp.interface.static_intr.forms import (StaticInterfaceForm,
-                                                          StaticInterfaceAVForm)
+    from cyder.cydhcp.interface.static_intr.forms import (
+        StaticInterfaceForm, StaticInterfaceAVForm)
     from cyder.cydns.txt.forms import TXTForm
     from cyder.cydhcp.vlan.forms import VlanForm, VlanAVForm
     from cyder.cydhcp.vrf.forms import VrfForm, VrfAVForm
     from cyder.cydhcp.workgroup.forms import WorkgroupForm, WorkgroupAVForm
 
     from cyder.models import (
-        AddressRecord, CNAME, Ctnr, Domain, DynamicInterface, DynamicInterfaceAV,
-        MX, Nameserver, Network, NetworkAV, PTR, Range, RangeAV, Site, SiteAV, SOA,
-        SOAAV, SRV, SSHFP, StaticInterface, StaticInterfaceAV, System, SystemAV,
-        TXT, Vlan, VlanAV, Vrf, VrfAV, Workgroup, WorkgroupAV
+        AddressRecord, CNAME, Ctnr, Domain, DynamicInterface,
+        DynamicInterfaceAV, MX, Nameserver, Network, NetworkAV, PTR, Range,
+        RangeAV, Site, SiteAV, SOA, SOAAV, SRV, SSHFP, StaticInterface,
+        StaticInterfaceAV, System, SystemAV, TXT, Vlan, VlanAV, Vrf, VrfAV,
+        Workgroup, WorkgroupAV
     )
-
 
     klasses = {
         'address_record': (AddressRecord, AddressRecordForm),
