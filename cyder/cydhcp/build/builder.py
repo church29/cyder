@@ -1,8 +1,6 @@
 from __future__ import unicode_literals
 
 import os
-import shlex
-import subprocess
 import sys
 import syslog
 import time
@@ -10,7 +8,7 @@ from traceback import format_exception
 
 from cyder.base.mixins import MutexMixin
 from cyder.base.utils import (copy_tree, dict_merge, log, run_command,
-                              set_attrs, shell_out)
+                              set_attrs)
 from cyder.base.vcs import GitRepo
 
 from cyder.core.utils import fail_mail
@@ -34,30 +32,30 @@ class DHCPBuilder(MutexMixin):
             syslog.openlog(b'dhcp_build', 0, syslog.LOG_LOCAL6)
 
         self.repo = GitRepo(self.prod_dir, self.line_change_limit,
-            self.line_removal_limit, debug=self.debug,
-            log_syslog=self.log_syslog, logger=syslog)
+                            self.line_removal_limit, debug=self.debug,
+                            log_syslog=self.log_syslog, logger=syslog)
 
     def log_debug(self, msg, to_stderr=None):
         if to_stderr is None:
             to_stderr = self.debug
         log(msg, log_level='LOG_DEBUG', to_syslog=False, to_stderr=to_stderr,
-                logger=syslog)
+            logger=syslog)
 
     def log_info(self, msg, to_stderr=None):
         if to_stderr is None:
             to_stderr = self.verbose
         log(msg, log_level='LOG_INFO', to_syslog=self.log_syslog,
-                to_stderr=to_stderr, logger=syslog)
+            to_stderr=to_stderr, logger=syslog)
 
     def log_notice(self, msg, to_stderr=None):
         if to_stderr is None:
             to_stderr = self.verbose
         log(msg, log_level='LOG_NOTICE', to_syslog=self.log_syslog,
-                to_stderr=to_stderr, logger=syslog)
+            to_stderr=to_stderr, logger=syslog)
 
     def log_err(self, msg, to_stderr=True):
         log(msg, log_level='LOG_ERR', to_syslog=self.log_syslog,
-                to_stderr=to_stderr, logger=syslog)
+            to_stderr=to_stderr, logger=syslog)
 
     def run_command(self, command, log=True, failure_msg=None):
         if log:

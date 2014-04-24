@@ -1,6 +1,6 @@
-from django.conf.urls.defaults import *
+from django.conf.urls.defaults import patterns, url
 
-from cyder.cydhcp.build.views import *
+from cyder.cydhcp.build.views import build_network
 
 
 urlpatterns = patterns(

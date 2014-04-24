@@ -3,7 +3,7 @@ from django.test import TestCase
 
 from cyder.base.eav.models import Attribute
 from cyder.base.utils import copy_tree, remove_dir_contents
-from cyder.base.vcs import GitRepo, GitRepoManager, SanityCheckFailure
+from cyder.base.vcs import GitRepoManager, SanityCheckFailure
 
 from cyder.core.ctnr.models import Ctnr
 from cyder.core.system.models import System
@@ -108,6 +108,7 @@ class DHCPBuildTest(TestCase):
         d.save()
 
         self.builder.build()
+
         def bad_push():
             self.builder.push(sanity_check=True)
         self.assertRaises(SanityCheckFailure, bad_push)
@@ -125,6 +126,7 @@ class DHCPBuildTest(TestCase):
             mac__in=('010204081020', 'aabbccddeeff')).delete()
 
         self.builder.build()
+
         def bad_push():
             self.builder.push(sanity_check=True)
         self.assertRaises(SanityCheckFailure, bad_push)
