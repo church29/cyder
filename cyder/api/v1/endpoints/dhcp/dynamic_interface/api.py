@@ -16,7 +16,6 @@ class DynamicInterfaceAVSerializer(serializers.ModelSerializer):
         model = DynamicInterfaceAV
 
 
-
 class DynamicInterfaceAVViewSet(api.CommonDHCPViewSet):
     model = DynamicInterfaceAV
     serializer_class = DynamicInterfaceAVSerializer

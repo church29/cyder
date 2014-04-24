@@ -1,13 +1,11 @@
 import json
 from django.contrib.auth.models import User
-from django.test.client import Client
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from cyder.api.authtoken.models import Token
-from cyder.base.eav.models import Attribute, EAVBase
+from cyder.base.eav.models import Attribute
 from cyder.base.eav.constants import ATTRIBUTE_INVENTORY
-from cyder.base.eav.validators import VALUE_TYPES
 from cyder.cydns.domain.models import Domain
 from cyder.cydns.nameserver.models import Nameserver
 from cyder.cydns.soa.models import SOA

@@ -15,11 +15,11 @@ def namehack(field):
     This function is the meat of a hack to handle an issue where trying to
     filter by attribute or view led to a very strange-seeming error. The issue
     is that attribute names in records with attributes and view names in DNS
-    records are represented using SlugRelatedFields so they appear with friendly
-    names (like "Hardware type" in the former case and "public" in the latter
-    case), but because of how this filter module is written, it will just
-    attempt to search by the related field, confusing Django when it gets a
-    query requesting a field with a string primary key like "public".
+    records are represented using SlugRelatedFields so they appear with
+    friendly names (like "Hardware type" in the former case and "public" in the
+    latter case), but because of how this filter module is written, it will
+    just attempt to search by the related field, confusing Django when it gets
+    a query requesting a field with a string primary key like "public".
     """
     if field.endswith(("attribute", "views")):
         return field + "__name"
@@ -93,7 +93,8 @@ class SearchFieldFilter(filters.BaseFilterBackend):
                 parent_ids = reduce((lambda x, y: x & y), parent_set_list)
                 kv_queryset = queryset.filter(id__in=parent_ids)
             else:
-                raise InvalidQuery("This record type does not have attributes.")
+                raise InvalidQuery(
+                    "This record type does not have attributes.")
 
         if q_include or q_exclude:
             f_queryset = queryset.filter(**q_include).exclude(**q_exclude)
