@@ -1,4 +1,3 @@
-from cyder.cydns.domain.models import Domain
 from cyder.cydhcp.site.models import Site
 
 

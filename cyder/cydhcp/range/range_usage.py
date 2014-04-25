@@ -1,7 +1,7 @@
 from itertools import chain, groupby
 
 import json
-from cyder.base.constants import IP_TYPE_4, IP_TYPE_6
+from cyder.base.constants import IP_TYPE_4
 
 from cyder.cydhcp.utils import start_end_filter, two_to_one
 from cyder.cydhcp.interface.static_intr.models import StaticInterface

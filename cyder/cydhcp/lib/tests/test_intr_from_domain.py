@@ -5,7 +5,8 @@ from cyder.cydhcp.site.models import Site
 from cyder.cydhcp.range.models import Range
 from cyder.cydhcp.network.models import Network
 from cyder.cydhcp.interface.static_intr.models import StaticInterface
-from cyder.cydhcp.lib.utils import *
+from cyder.cydhcp.lib.utils import (
+    create_ipv4_intr_from_domain, create_ipv4_interface)
 
 from cyder.cydns.domain.models import Domain
 

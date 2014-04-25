@@ -75,7 +75,7 @@ class DeleteStaticInterTests(TestCase):
         system = System(name='test1_delete_basic')
         system.save()
         kwargs = {'mac': mac, 'label': label, 'domain': domain, 'ip_str':
-                ip_str, 'system': system}
+                  ip_str, 'system': system}
         self.do_add(**kwargs)
         self.assertTrue(StaticInterface.objects.filter(**kwargs))
         system.delete()

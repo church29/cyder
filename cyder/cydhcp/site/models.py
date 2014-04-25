@@ -115,7 +115,7 @@ class SiteAV(EAVBase):
         app_label = 'cyder'
         db_table = 'site_av'
 
-
     entity = models.ForeignKey(Site)
-    attribute = EAVAttributeField(Attribute,
+    attribute = EAVAttributeField(
+        Attribute,
         type_choices=(ATTRIBUTE_INVENTORY,))

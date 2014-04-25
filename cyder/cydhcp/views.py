@@ -1,17 +1,7 @@
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from django.forms.util import ErrorList
 from django.shortcuts import render, get_object_or_404
 
 from cyder.base.constants import get_klasses
-from cyder.base.views import (BaseCreateView, BaseDeleteView,
-                              BaseDetailView, BaseListView, BaseUpdateView,
-                              cy_view, cy_delete, search_obj, table_update)
-from cyder.cydhcp.forms import IpSearchForm
-from cyder.cydhcp.network.utils import calc_networks, calc_parent
-from cyder.cydns.address_record.models import AddressRecord
-from cyder.cydns.ip.models import ipv6_to_longs
-
-import ipaddr
+from cyder.base.views import cy_view, search_obj, table_update
 
 
 def cydhcp_view(request, pk=None):

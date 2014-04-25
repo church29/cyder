@@ -5,8 +5,6 @@ from cyder.cydns.domain.models import Domain
 from cyder.cydhcp.network.models import Network
 from cyder.cydhcp.range.models import Range
 
-import ipaddr
-
 
 class V6RangeTests(TestCase):
 

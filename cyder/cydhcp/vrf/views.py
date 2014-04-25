@@ -20,6 +20,7 @@ def get_static_intr_q(vrf):
     q = reduce(lambda x, y: x | y, q_list, Q())
     return q
 
+
 def vrf_detail(request, pk):
     from cyder.cydhcp.interface.dynamic_intr.models import DynamicInterface
 

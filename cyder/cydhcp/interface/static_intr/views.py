@@ -1,6 +1,4 @@
-import json as json
-
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.exceptions import ValidationError
 from django.contrib import messages
 from django.forms.util import ErrorList
 from django.http import HttpResponse
@@ -11,8 +9,6 @@ from cyder.core.system.models import System
 from cyder.cydhcp.interface.static_intr.forms import StaticInterfaceForm
 from cyder.cydhcp.interface.static_intr.models import (StaticInterface,
                                                        StaticInterfaceAV)
-from cyder.cydhcp.range.models import Range
-from cyder.cydns.domain.models import Domain
 
 
 def static_intr_detail(request, pk):

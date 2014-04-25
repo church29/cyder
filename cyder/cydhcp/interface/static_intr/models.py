@@ -1,13 +1,9 @@
 from gettext import gettext as _
 
 from django.db import models
+
 from django.core.exceptions import ValidationError
-
-import datetime
-import re
-
 from cyder.core.fields import MacAddrField
-
 from cyder.core.system.models import System
 
 from cyder.base.constants import IP_TYPE_6
@@ -19,7 +15,7 @@ from cyder.base.models import ExpirableMixin
 
 from cyder.cydhcp.constants import STATIC
 from cyder.cydhcp.range.utils import find_range
-from cyder.cydhcp.utils import format_mac, join_dhcp_args
+from cyder.cydhcp.utils import join_dhcp_args
 from cyder.cydhcp.workgroup.models import Workgroup
 
 from cyder.cydns.ptr.models import BasePTR, PTR

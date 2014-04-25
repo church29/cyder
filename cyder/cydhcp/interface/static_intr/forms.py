@@ -5,7 +5,6 @@ import ipaddr
 
 from cyder.base.eav.forms import get_eav_form
 from cyder.base.mixins import UsabilityFormMixin
-from cyder.core.system.models import System
 from cyder.cydhcp.constants import STATIC
 from cyder.cydhcp.forms import RangeWizard
 from cyder.cydhcp.interface.static_intr.models import (StaticInterface,
@@ -13,7 +12,6 @@ from cyder.cydhcp.interface.static_intr.models import (StaticInterface,
 from cyder.cydhcp.range.models import Range
 from cyder.cydns.view.models import View
 from cyder.cydns.forms import ViewChoiceForm
-from cyder.cydns.validation import validate_label
 
 
 def validate_ip(ip):

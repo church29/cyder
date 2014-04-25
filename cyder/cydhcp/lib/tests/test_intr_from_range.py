@@ -50,7 +50,6 @@ class LibTestsRange(TestCase):
         n.vlan = v
         n.save()
 
-
         r1 = Range(start_str="15.0.0.0", end_str="15.0.0.10",
                    network=n, ip_type='4', range_type=STATIC)
         r1.clean()

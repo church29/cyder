@@ -281,6 +281,5 @@ class NetworkAV(EAVBase):
         app_label = 'cyder'
         db_table = 'network_av'
 
-
     entity = models.ForeignKey(Network)
     attribute = EAVAttributeField(Attribute)

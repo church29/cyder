@@ -7,16 +7,13 @@ from cyder.base.eav.fields import EAVAttributeField
 from cyder.base.eav.models import Attribute, EAVBase
 from cyder.cydhcp.interface.dynamic_intr.validation import is_dynamic_range
 from cyder.cydhcp.range.models import Range
-from cyder.cydhcp.utils import format_mac, join_dhcp_args
+from cyder.cydhcp.utils import join_dhcp_args
 from cyder.cydhcp.workgroup.models import Workgroup
 from cyder.core.fields import MacAddrField
 from cyder.core.ctnr.models import Ctnr
 from cyder.core.system.models import System
 from cyder.base.mixins import ObjectUrlMixin
 from cyder.base.models import BaseModel, ExpirableMixin
-
-import datetime
-import re
 
 
 class DynamicInterface(BaseModel, ObjectUrlMixin, ExpirableMixin):

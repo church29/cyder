@@ -88,7 +88,7 @@ class VlanAV(EAVBase):
         app_label = 'cyder'
         db_table = 'vlan_av'
 
-
     entity = models.ForeignKey(Vlan)
-    attribute = EAVAttributeField(Attribute,
+    attribute = EAVAttributeField(
+        Attribute,
         type_choices=(ATTRIBUTE_INVENTORY,))

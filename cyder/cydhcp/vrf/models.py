@@ -77,7 +77,6 @@ class Vrf(BaseModel, ObjectUrlMixin):
                 for client in clients:
                     build_str += client.build_subclass(self.name)
 
-
         return build_str
 
 
@@ -86,7 +85,7 @@ class VrfAV(EAVBase):
         app_label = 'cyder'
         db_table = 'vrf_av'
 
-
     entity = models.ForeignKey(Vrf)
-    attribute = EAVAttributeField(Attribute,
+    attribute = EAVAttributeField(
+        Attribute,
         type_choices=(ATTRIBUTE_INVENTORY,))
