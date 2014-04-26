@@ -1,5 +1,4 @@
 import re
-import os
 
 
 def get_serial(file_):

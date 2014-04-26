@@ -47,7 +47,7 @@ class DirtySOATests(TestCase):
         self.net.update_network()
         self.net.save()
         self.range = Range(network=self.net, range_type=STATIC,
-                        start_str='10.2.3.1', end_str='10.2.3.2')
+                           start_str='10.2.3.1', end_str='10.2.3.2')
         self.range.save()
 
     def test_print_soa(self):

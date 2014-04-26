@@ -1,15 +1,12 @@
 import os
-import shutil
-from django.core.management import call_command
 from django.test import TestCase
 from time import sleep
 
 from cyder.base.utils import remove_dir_contents
-from cyder.base.vcs import GitRepo, GitRepoManager, SanityCheckFailure
+from cyder.base.vcs import GitRepoManager, SanityCheckFailure
 from cyder.core.ctnr.models import Ctnr
 from cyder.core.system.models import System
 from cyder.cydhcp.interface.static_intr.models import StaticInterface
-from cyder.cydhcp.range.models import Range
 from cyder.cydns.cname.models import CNAME
 from cyder.cydns.cybind.builder import DNSBuilder
 from cyder.cydns.domain.models import Domain
@@ -124,6 +121,7 @@ class DNSBuildTest(TestCase):
             View.objects.get(name='private'))
 
         self.builder.build()
+
         def bad_push():
             self.builder.push(sanity_check=True)
         self.assertRaises(SanityCheckFailure, bad_push)
@@ -142,6 +140,7 @@ class DNSBuildTest(TestCase):
             fqdn__in=('www.example.com', 'www2.example.com')).delete()
 
         self.builder.build()
+
         def bad_push():
             self.builder.push(sanity_check=True)
         self.assertRaises(SanityCheckFailure, bad_push)
