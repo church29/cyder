@@ -51,7 +51,7 @@ def batch_update(request):
     success = True
     ip = None
     start_lower = None
-    intr_type = request.POST['interface_type']
+    intr_type = ('').join(request.POST['interface_type'].split()[:-1])
     new_intrs = []
 
     for field in ['range', 'range_type', 'interfaces']:
@@ -69,9 +69,10 @@ def batch_update(request):
             'error': 'That range does not exist'}))
 
     same_type = intr_type[:2] == rng.range_type
-    Interface = get_model('cyder', ('').join(intr_type.split())[:-1])
+    Interface = get_model('cyder', intr_type + 'interface')
     interfaces = request.POST['interfaces'].split(',')
     interface_qs = Interface.objects.filter(pk__in=interfaces)
+
     if rng.range_type == 'st':
         used_ips, _ = range_usage(
             rng.start_lower, rng.end_lower, rng.ip_type)
@@ -80,7 +81,6 @@ def batch_update(request):
             return HttpResponse(json.dumps({
                 'error': 'Range does not have enough space for selected '
                 'interfaces'}))
-
     for intr in interface_qs:
         if rng.range_type == 'st':
             if ip:
@@ -98,7 +98,7 @@ def batch_update(request):
             new_intr = intr
 
         else:
-            new_intr_type = 'staticinterfacedynamicinterface'.replace(
+            new_intr_type = 'staticdynamicinterface'.replace(
                 intr_type, '')
             NewInterface = get_model('cyder', new_intr_type)
             kwargs = {'mac': intr.mac, 'dhcp_enabled': intr.dhcp_enabled,
