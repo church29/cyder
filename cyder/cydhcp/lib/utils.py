@@ -183,13 +183,12 @@ def create_ipv4_interface(label, vlan_str, site_str, system,
             network = vlan.network_set.get(site=site)
         except MultipleObjectsReturned:
             networks = vlan.network_set.filter(site=site)
-            errors['network'] = ErrorList(["There were too many networks "
-                                           "associated with vlan {0} in {1}. "
-                                           "Manually specify which network to "
-                                           "use. Your choces are {2}".format(
-                                           vlan, site,
-                                           ", ".join([n.network_str
-                                           for n in networks]))])
+            errors['network'] = ErrorList(
+                ["There were too many networks associated with vlan {0} in "
+                 "{1}. Manually specify which network to use. Your choces are "
+                 "{2}".format(vlan, site,
+                              ", ".join([n.network_str for n in networks]))])
+
             return None, errors
         except ObjectDoesNotExist:
             errors['network'] = "No network for vlan {0} in {1}.".format(
@@ -208,9 +207,9 @@ def create_ipv4_interface(label, vlan_str, site_str, system,
                     tmp_network = ipaddr.IPv4Network(network_str)
                     ip_upper, ip_lower = 0, int(tmp_network)
             except ipaddr.AddressValueError:
-                errors['network'] = ErrorList(["The network {0} is not a "
-                                               "valid IPv{1} network.".format(
-                                               network_str, ip_type)])
+                errors['network'] = ErrorList(
+                    ["The network {0} is not a valid IPv{1} network.".format(
+                        network_str, ip_type)])
                 return None, errors
             # Now try to find a network that matches the query. Error out if we
             # can't find one and recommend the user create it.

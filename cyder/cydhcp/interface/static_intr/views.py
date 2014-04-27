@@ -15,9 +15,9 @@ def static_intr_detail(request, pk):
     static_interface = get_object_or_404(StaticInterface, pk=pk)
 
     return cy_detail(request, StaticInterface,
-                     'static_intr/static_intr_detail.html', {
-                     'Attributes': 'staticinterfaceav_set',
-                     }, pk=pk, obj=static_interface)
+                     'static_intr/static_intr_detail.html',
+                     {'Attributes': 'staticinterfaceav_set', },
+                     pk=pk, obj=static_interface)
 
 
 def detail_static_interface(reqeust, intr_pk):

@@ -31,7 +31,7 @@ class Range(BaseModel, ViewMixin, ObjectUrlMixin):
     """The Range class.
 
         >>> Range(start=start_ip, end=end_ip,
-        >>>         defualt_domain=domain, network=network)
+        >>>       defualt_domain=domain, network=network)
 
     Ranges live inside networks; their start ip address is greater than or
     equal to the the start of their network and their end ip address is less
