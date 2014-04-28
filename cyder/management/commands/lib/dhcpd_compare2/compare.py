@@ -2,7 +2,7 @@ import re
 from copy import deepcopy
 from itertools import ifilter
 from parsley import makeGrammar
-from sys import argv, stderr, stdout
+from sys import stderr
 
 from dhcp_objects import (Statement, RangeStmt, Pool, Subnet, Class, Subclass,
                           Group, Host, ConfigFile)
@@ -116,17 +116,17 @@ def compare(left, right, diff, childtype):
     # object in the intersection came from xs, saving us an extra find_in call
     # and resulting in better speed overall.
     for x in xs:
-        if x in ys: # both
+        if x in ys:  # both
             y = find_in(x, ys)
             if has_children(x) or has_children(y):
                 same = deep_compare(x, y, zs)
             else:
                 same = True
-        else: # left
+        else:  # left
             add_all(x, zs, '-')
             same = False
 
-    for y in ys - xs: # right
+    for y in ys - xs:  # right
         add_all(y, zs, '+')
         same = False
 

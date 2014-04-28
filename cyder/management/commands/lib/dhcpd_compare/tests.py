@@ -1,7 +1,7 @@
 import unittest
-from dhcp_objects import (Subnet, Host, Option, Parameter,
-                          Pool, Group, Allow, Deny)
-from parser import iscgrammar, DhcpConfigContext
+from dhcp_objects import (
+    Subnet, Host, Option, Parameter, Pool, Group, Allow, Deny)
+from parser import iscgrammar
 from constants import *
 
 
@@ -79,7 +79,7 @@ class ParserTests(unittest.TestCase):
                              parameters=[p1])
         expected_subnet = Subnet(network_addr='128.193.212.0',
                                  netmask_addr='255.255.254.0',
-                                 options=[o1, o2, o3,o4],
+                                 options=[o1, o2, o3, o4],
                                  pools=[expected_pool])
         subnet = iscgrammar(self.subnet_input).Subnet()
         self.assertEqual(subnet, expected_subnet)
@@ -87,7 +87,8 @@ class ParserTests(unittest.TestCase):
     def test_pool_parse(self):
         p1 = Parameter('failover', 'peer "dhcp"', POOL)
         a1 = Allow('members of "zone.vet:128.193.215.160:128.193.215.199"')
-        a2 = Allow('members of "zone.vetoregonstate:128.193.215.160:128.193.215.199"')
+        a2 = Allow(
+            'members of "zone.vetoregonstate:128.193.215.160:128.193.215.199"')
         d1 = Deny('dynamic bootp clients')
         expected_pool = Pool(start='128.193.215.160', end='128.193.215.199',
                              allow=[a1, a2],
@@ -98,13 +99,13 @@ class ParserTests(unittest.TestCase):
 
     def test_host_parse(self):
         expected_host1 = Host('x74742-boot.nws.oregonstate.edu',
-                     mac='00:04:0d:f0:3b:e8')
+                              mac='00:04:0d:f0:3b:e8')
 
         host1 = iscgrammar(self.host_input1).Host()
         self.assertEqual(host1, expected_host1)
         expected_host2 = Host('temp-hhs.hhs.oregonstate.edu',
-                     '128.193.122.93',
-                     '00:b0:d0:7e:c8:c3')
+                              '128.193.122.93',
+                              '00:b0:d0:7e:c8:c3')
         host2 = iscgrammar(self.host_input2).Host()
         self.assertEqual(host2, expected_host2)
 
@@ -115,7 +116,7 @@ class ParserTests(unittest.TestCase):
         host = Host(fqdn='temp-hhs.hhs.oregonstate.edu',
                     ip='128.193.122.93',
                     mac='00:b0:d0:7e:c8:c3')
-        expected_group = Group(options=[o1,o2,o3], hosts=[host])
+        expected_group = Group(options=[o1, o2, o3], hosts=[host])
         group = iscgrammar(self.group_input).Group()
         self.assertEqual(expected_group, group)
 

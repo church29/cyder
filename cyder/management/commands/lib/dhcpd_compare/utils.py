@@ -1,4 +1,4 @@
-from itertools import chain, imap, groupby
+from itertools import chain, groupby
 import re
 from dhcp_objects import (Option, Group, Host, Parameter, Pool, Allow,
                           Deny, Subnet, )
@@ -15,7 +15,7 @@ key_table = [(Option, 'options'),
              ('start', 'start'),
              ('end', 'end'),
              ('fqdn', 'fqdn'),
-             ('match' , 'match')]
+             ('match', 'match')]
 
 
 def get_key(obj):

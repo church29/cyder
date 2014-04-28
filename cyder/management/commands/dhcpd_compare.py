@@ -1,5 +1,5 @@
 from cyder.management.commands.lib.dhcpd_compare.parser \
-        import compare
+    import compare
 
 from django.core.management.base import BaseCommand, CommandError
 

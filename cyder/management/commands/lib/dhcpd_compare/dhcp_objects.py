@@ -1,13 +1,14 @@
-from ipaddr import IPv4Address, IPv6Address, IPv4Network, IPv6Network
+from ipaddr import IPv4Address, IPv4Network
 from itertools import chain
 from functools import total_ordering
-from bisect import insort_left, bisect_left
+
 
 def join_p(xs, d=1):
     if not xs:
         return ''
     lines = "".join(map(str, xs)).splitlines()
     return "".join('\t' * d + line + '\n' for line in lines)
+
 
 @total_ordering
 class Attribute(object):
@@ -18,7 +19,7 @@ class Attribute(object):
         self.scope = scope
 
     def __eq__(self, other):
-        return (self.key, self.value)  == (other.key, other.value)
+        return (self.key, self.value) == (other.key, other.value)
 
     def __ne__(self, other):
         return not self == other
@@ -102,11 +103,12 @@ class Host(object):
         self.parameters = set(parameters or [])
 
     def __eq__(self, other):
-        return self.fqdn == other.fqdn and \
-               self.ip == other.ip and \
-               self.mac == other.mac and \
-               self.options == other.options and \
-               self.parameters == other.parameters
+        return (
+            self.fqdn == other.fqdn and
+            self.ip == other.ip and
+            self.mac == other.mac and
+            self.options == other.options and
+            self.parameters == other.parameters)
 
     def __ne__(self, other):
         return not self == other
@@ -181,12 +183,13 @@ class Pool(ScopeForHost):
         self.parameters = set(parameters or [])
 
     def __eq__(self, other):
-        return  self.compare_options(other) and \
-                self.compare_parameters(other) and \
-                self.start == other.start and \
-                self.end == other.end and \
-                self.allow == other.allow and \
-                self.deny == other.deny
+        return (
+            self.compare_options(other) and
+            self.compare_parameters(other) and
+            self.start == other.start and
+            self.end == other.end and
+            self.allow == other.allow and
+            self.deny == other.deny)
 
     def __ne__(self, other):
         return not self == other
@@ -228,20 +231,21 @@ class Subnet(ScopeForHost):
         return ("subnet {0} netmask {1} {{\n"
                 "{2}{3}{4}"
                 "}}\n".format(
-                   self.network.network,
-                   self.network.netmask,
-                   join_p(sorted(self.options)),
-                   join_p(sorted(self.parameters)),
-                   join_p(sorted(self.pools))))
+                    self.network.network,
+                    self.network.netmask,
+                    join_p(sorted(self.options)),
+                    join_p(sorted(self.parameters)),
+                    join_p(sorted(self.pools))))
 
     def __hash__(self):
         return hash(self.__str__())
 
     def __eq__(self, other):
-        return self.options == other.options and \
-               self.parameters == other.parameters and \
-               self.pools == other.pools and \
-               self.network == other.network
+        return (
+            self.options == other.options and
+            self.parameters == other.parameters and
+            self.pools == other.pools and
+            self.network == other.network)
 
     def __ne__(self, other):
         return not self == other
@@ -271,10 +275,11 @@ class Group(ScopeForHost):
             group.group_update()
 
     def __eq__(self, other):
-        return self.compare_options(other) and \
-               self.compare_parameters(other) and \
-               self.hosts == other.hosts and \
-               self.groups == other.groups
+        return (
+            self.compare_options(other) and
+            self.compare_parameters(other) and
+            self.hosts == other.hosts and
+            self.groups == other.groups)
 
     def __ne__(self, other):
         return not self == other
@@ -294,6 +299,7 @@ class Group(ScopeForHost):
 
     def __hash__(self):
         return hash(self.__str__())
+
 
 @total_ordering
 class ClientClass(object):
@@ -326,8 +332,9 @@ class ClientClass(object):
         self.subclass.update([mac])
 
     def __eq__(self, other):
-        return self.name == other.name and \
-               self.subclass == other.subclass
+        return (
+            self.name == other.name and
+            self.subclass == other.subclass)
 
     def __ne__(self, other):
         return not self == other

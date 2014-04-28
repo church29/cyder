@@ -2,21 +2,17 @@ from parsley import wrapGrammar
 from ometa.grammar import OMeta
 from ometa.runtime import OMetaBase
 from constants import *
-from dhcp_objects import (Host, Pool, Parameter, Option, Subnet, Group, Allow,
-                          Deny, ClientClass)
-from utils import prepare_arguments, is_mac, is_ip
-import sys
-from bisect import insort_left, bisect_left
-from ipaddr import IPv4Address, IPv6Address
 from sys import stdout
 
 
 def strip_comments(content):
-    return "".join(line[:line.find('#')] if '#' in line else line for line in content)
+    return "".join(
+        line[:line.find('#')] if '#' in line else line for line in content)
 
 
 grammar = open('cyder/management/commands/lib/dhcpd_compare/'
                'isc.parsley').read()
+
 
 class DhcpConfigContext(
         OMeta.makeGrammar(
@@ -64,10 +60,11 @@ class DhcpConfigContext(
         return False
 
     def __eq__(self, other):
-        return self.hosts == other.hosts and \
-               self.subnets == other.subnets and \
-               self.groups  == other.groups and \
-               self.classes == other.classes
+        return (
+            self.hosts == other.hosts and
+            self.subnets == other.subnets and
+            self.groups == other.groups and
+            self.classes == other.classes)
 
     def diff(self, other):
         if not (self == other):
@@ -113,11 +110,8 @@ class DhcpConfigContext(
                     stdout.write(str(klass))
 
 
-
-
-
-
 iscgrammar = wrapGrammar(DhcpConfigContext)
+
 
 def compare(file1, file2):
     parse1 = iscgrammar(strip_comments(open(file1))).GlobalParse()
