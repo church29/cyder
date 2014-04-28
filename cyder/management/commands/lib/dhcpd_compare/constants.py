@@ -1,3 +1,5 @@
+from string import hexdigits
+
 GLOBAL = 0
 SUBNET = 1
 POOL = 2
