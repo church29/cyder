@@ -1,4 +1,4 @@
-from django.conf.urls.defaults import *
+from django.conf.urls.defaults import patterns, url
 
 from cyder.cydns.urls import cydns_urls
 from cyder.cydns.domain.views import domain_detail, get_all_domains, search

@@ -113,7 +113,7 @@ class SOATests(TestCase):
         d0 = Domain(name='com')
         d0.save()
         data = {'primary': "ns1.foo.com", 'contact': "email.foo.com",
-                'root_domain':d0}
+                'root_domain': d0}
         soa = SOA(**data)
         soa.save()
         d1 = Domain(name='foo.com', soa=soa)

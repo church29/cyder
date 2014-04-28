@@ -7,12 +7,11 @@ from cyder.base.constants import ACTION_CREATE, get_klasses
 from cyder.base.mixins import UsabilityFormMixin
 from cyder.base.helpers import do_sort
 from cyder.base.utils import (make_paginator, _filter, tablefy)
-from cyder.base.views import (BaseCreateView, BaseDeleteView,
-                              BaseDetailView, BaseListView, BaseUpdateView,
-                              cy_delete, search_obj, table_update)
+from cyder.base.views import (
+    BaseCreateView, BaseDeleteView, BaseDetailView, BaseListView,
+    BaseUpdateView, search_obj, table_update)
 from cyder.core.cyuser.utils import perm
 
-from cyder.cydns.constants import DNS_EAV_MODELS
 from cyder.cydns.utils import ensure_label_domain, prune_tree, slim_form
 
 import json
@@ -32,7 +31,6 @@ def cydns_view(request, pk=None):
     obj = get_object_or_404(Klass, pk=pk) if pk else None
 
     if request.method == 'POST':
-        object_table = None
         page_obj = None
 
         qd, domain, errors = _fqdn_to_domain(request.POST.copy())

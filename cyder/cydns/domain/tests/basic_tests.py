@@ -90,7 +90,6 @@ class DomainTests(TestCase):
                  description="test2", root_domain=m)
         self.assertRaises(ValidationError, s2.save)
 
-
     def test_2_soa_validators(self):
         d, _ = Domain.objects.get_or_create(name="gaz")
         d.save()

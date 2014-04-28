@@ -10,7 +10,7 @@ class SRVForm(DNSForm, UsabilityFormMixin):
         model = SRV
         exclude = ('fqdn',)
         fields = ('label', 'domain', 'target', 'port', 'priority', 'weight',
-                 'views', 'ttl', 'description')
+                  'views', 'ttl', 'description')
         widgets = {'views': forms.CheckboxSelectMultiple}
 
 

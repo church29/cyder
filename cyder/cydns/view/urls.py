@@ -1,6 +1,8 @@
-from django.conf.urls.defaults import *
+from django.conf.urls.defaults import patterns, url
 
-from cyder.cydns.view.views import *
+from cyder.cydns.view.views import (
+    ViewCreateView, ViewDeleteView, ViewDetailView, ViewListView,
+    ViewUpdateView)
 
 
 urlpatterns = patterns(

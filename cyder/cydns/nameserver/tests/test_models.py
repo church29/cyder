@@ -72,7 +72,7 @@ class NSTestsModels(TestCase):
         self.net2.update_network()
         self.net2.save()
         self.sr3 = Range(network=self.net2, range_type=STATIC,
-                        start_str='14.10.1.1', end_str='14.10.1.2')
+                         start_str='14.10.1.1', end_str='14.10.1.2')
         self.sr3.save()
 
     def do_add(self, domain, server):

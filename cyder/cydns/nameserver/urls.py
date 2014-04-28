@@ -1,6 +1,6 @@
-from django.conf.urls.defaults import *
+from django.conf.urls.defaults import patterns, url
 
-from cyder.cydns.nameserver.views import *
+from cyder.cydns.nameserver.views import create_ns_delegated, NSCreateView
 from cyder.cydns.urls import cydns_urls
 
 

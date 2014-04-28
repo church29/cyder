@@ -7,8 +7,6 @@ from django.shortcuts import render
 from cyder.cydns.soa.forms import SOAForm
 from cyder.cydns.soa.models import SOA, SOAAV
 
-import json as json
-
 
 def soa_detail(request, pk):
     from cyder.base.views import cy_detail

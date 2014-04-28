@@ -216,7 +216,7 @@ class SOAAV(EAVBase):
         app_label = 'cyder'
         db_table = 'soa_av'
 
-
     entity = models.ForeignKey(SOA)
-    attribute = EAVAttributeField(Attribute,
+    attribute = EAVAttributeField(
+        Attribute,
         type_choices=(ATTRIBUTE_INVENTORY,))

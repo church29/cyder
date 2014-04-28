@@ -16,6 +16,7 @@ from cyder.cydhcp.range.models import Range
 from cyder.cydhcp.constants import STATIC
 from cyder.cydhcp.network.models import Network
 
+
 class AutoDeleteTests(TestCase):
 
     def setUp(self):

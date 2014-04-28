@@ -1,13 +1,12 @@
-from django.core.exceptions import ValidationError
-from django.forms.util import ErrorList, ErrorDict
-from django.shortcuts import (get_object_or_404, render, render_to_response,
-                              redirect)
+from django.db.models import get_model
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.forms.util import ErrorDict, ErrorList
+from django.shortcuts import (
+    get_object_or_404, redirect, render, render_to_response)
 
-from cyder.cydns.address_record.models import AddressRecord
-from cyder.cydns.domain.models import Domain
-from cyder.cydns.nameserver.forms import (Nameserver, NameserverForm,
-                                          NSDelegated)
-from cyder.cydns.views import *
+from cyder.cydns.nameserver.forms import (
+    Nameserver, NameserverForm, NSDelegated)
+from cyder.cydns.views import CydnsCreateView
 
 
 class NSView(object):
@@ -33,10 +32,14 @@ def update_ns(request, nameserver_pk):
                     glue_type, glue_pk = form.cleaned_data['glue'].split('_')
                     try:
                         if glue_type == 'addr':
+                            AddressRecord = get_model(
+                                'cyder', 'addressrecord')
                             glue = AddressRecord.objects.get(pk=glue_pk)
                         elif glue_type == 'intr':
+                            StaticInterface = get_model(
+                                'cyder', 'staticinterface')
                             glue = StaticInterface.objects.get(pk=glue_pk)
-                    except ObjectDoesNotExists, e:
+                    except ObjectDoesNotExist, e:
                         raise ValidationError("Couldn't find glue: " + str(e))
                     nameserver.glue = glue
                 nameserver.server = server
@@ -60,6 +63,7 @@ def update_ns(request, nameserver_pk):
 def create_ns_delegated(request, domain):
     if request.method == "POST":
         form = NSDelegated(request.POST)
+        Domain = get_model('cyder', 'domain')
         domain = Domain.objects.get(pk=domain)
         if not domain:
             pass  # Fall through. Maybe send a message saying no domain?
