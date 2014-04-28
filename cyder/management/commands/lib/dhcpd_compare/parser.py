@@ -2,7 +2,8 @@ from parsley import wrapGrammar
 from ometa.grammar import OMeta
 from ometa.runtime import OMetaBase
 from constants import *
-from dhcp_objects import Option, Parameter
+from dhcp_objects import (
+    Allow, ClientClass, Deny, Group, Host, Option, Parameter, Pool, Subnet)
 from sys import stdout
 
 
