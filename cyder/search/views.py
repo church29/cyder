@@ -40,20 +40,20 @@ def _search(request):
         return ([], [])
     (addrs, cnames, domains, static, dynamic, mxs, nss, ptrs, soas, srvs,
      sshfps, sys, txts, misc) = (
-        objs['A'],
-        objs['CNAME'],
-        objs['DOMAIN'],
-        objs['STATIC'],
-        objs['DYNAMIC'],
-        objs['MX'],
-        objs['NS'],
-        objs['PTR'],
-        objs['SOA'],
-        objs['SRV'],
-        objs['SSHFP'],
-        objs['SYSTEM'],
-        objs['TXT'],
-        [])
+         objs['A'],
+         objs['CNAME'],
+         objs['DOMAIN'],
+         objs['STATIC'],
+         objs['DYNAMIC'],
+         objs['MX'],
+         objs['NS'],
+         objs['PTR'],
+         objs['SOA'],
+         objs['SRV'],
+         objs['SSHFP'],
+         objs['SYSTEM'],
+         objs['TXT'],
+         [])
 
     meta = [
         (soas.count() if soas else 0, 'soa', 'SOA Records'),
