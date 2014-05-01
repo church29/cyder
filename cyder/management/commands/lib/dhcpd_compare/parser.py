@@ -4,6 +4,7 @@ from ometa.runtime import OMetaBase
 from constants import *
 from dhcp_objects import (
     Allow, ClientClass, Deny, Group, Host, Option, Parameter, Pool, Subnet)
+from utils import prepare_arguments
 from sys import stdout
 
 
