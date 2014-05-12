@@ -196,6 +196,7 @@ class Domain(BaseModel, ObjectUrlMixin):
             return None
 
     def clean(self):
+        self.name = self.name.lower()
         if self.name.endswith('arpa'):
             self.is_reverse = True
         self.master_domain = name_to_master_domain(self.name)
