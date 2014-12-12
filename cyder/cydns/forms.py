@@ -14,8 +14,6 @@ class ViewChoiceForm(ModelForm):
 
 
 class DNSForm(ViewChoiceForm):
-    comment = forms.CharField(widget=forms.HiddenInput, required=False)
-
     def clean(self):
         super(DNSForm, self).clean()
         validate_views(self.cleaned_data)

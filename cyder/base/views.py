@@ -459,6 +459,16 @@ def table_update(request, pk, obj_type=None):
         qd['label'], qd['domain'] = label, str(domain.pk)
 
     form = FormKlass(qd, instance=obj)
+    # Set the fields that weren't modified
+    for key in form.fields:
+        if key not in qd:
+            old_value = form.initial[key]
+            if isinstance(old_value, list):
+                # ManyToManyFields need special treatment
+                form.data.setlist(key, old_value)
+            else:
+                form.data[key] = old_value
+
     if form.is_valid():
         form.save()
         return HttpResponse()
