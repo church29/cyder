@@ -1,22 +1,22 @@
 import time
 from gettext import gettext as _
+from itertools import chain
 from string import Template
 
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
-from django.db import models
+from django.db import models, transaction
 
 from cyder.base.eav.constants import ATTRIBUTE_INVENTORY
 from cyder.base.eav.fields import EAVAttributeField
 from cyder.base.eav.models import Attribute, EAVBase
 from cyder.base.mixins import ObjectUrlMixin, DisplayMixin
 from cyder.base.models import BaseModel
-from cyder.cydns.validation import (validate_fqdn, validate_ttl,
-                                    validate_minimum)
+from cyder.base.validators import validate_positive_integer_field
+from cyder.base.utils import transaction_atomic
+from cyder.cydns.validation import validate_fqdn, validate_ttl
 from cyder.core.task.models import Task
 from cyder.settings import MIGRATING
-
-# import reversion
 
 
 #TODO, put these defaults in a config file.
@@ -61,16 +61,25 @@ class SOA(BaseModel, ObjectUrlMixin, DisplayMixin):
                                       verbose_name="Time to live")
     primary = models.CharField(max_length=100, validators=[validate_fqdn])
     contact = models.CharField(max_length=100, validators=[validate_fqdn])
-    serial = models.PositiveIntegerField(null=False, default=int(time.time()))
+    serial = models.PositiveIntegerField(
+        null=False, default=int(time.time()),
+        validators=[validate_positive_integer_field])
     # Indicates when the zone data is no longer authoritative. Used by slave.
-    expire = models.PositiveIntegerField(null=False, default=DEFAULT_EXPIRE)
+    expire = models.PositiveIntegerField(
+        null=False, default=DEFAULT_EXPIRE,
+        validators=[validate_positive_integer_field])
     # The time between retries if a slave fails to contact the master
     # when refresh (below) has expired.
-    retry = models.PositiveIntegerField(null=False, default=DEFAULT_RETRY)
+    retry = models.PositiveIntegerField(
+        null=False, default=DEFAULT_RETRY,
+        validators=[validate_positive_integer_field])
     # The time when the slave will try to refresh the zone from the master
-    refresh = models.PositiveIntegerField(null=False, default=DEFAULT_REFRESH)
-    minimum = models.PositiveIntegerField(null=False, default=DEFAULT_MINIMUM,
-                                          validators=[validate_minimum])
+    refresh = models.PositiveIntegerField(
+        null=False, default=DEFAULT_REFRESH,
+        validators=[validate_positive_integer_field])
+    minimum = models.PositiveIntegerField(
+        null=False, default=DEFAULT_MINIMUM,
+        validators=[validate_positive_integer_field])
     description = models.CharField(max_length=200, blank=True)
     root_domain = models.ForeignKey("cyder.Domain", null=False, unique=True,
                                     related_name="root_of_soa")
@@ -80,7 +89,7 @@ class SOA(BaseModel, ObjectUrlMixin, DisplayMixin):
     dns_enabled = models.BooleanField(default=True)
 
     search_fields = ('primary', 'contact', 'description', 'root_domain__name')
-    display_fields = ('root_domain__name',)
+    sort_fields = ('root_domain__name',)
     template = _("{root_domain}. {ttl} {rdclass:$rdclass_just} "
                  "{rdtype:$rdtype_just}" "{primary}. {contact}. ({serial} "
                  "{refresh} {retry} {expire})")
@@ -100,17 +109,17 @@ class SOA(BaseModel, ObjectUrlMixin, DisplayMixin):
                                rdtype=self.rdtype, rdclass='IN',
                                **self.__dict__)
 
-    def __str__(self):
+    def __unicode__(self):
         return self.root_domain.name
-
-    def __repr__(self):
-        return "<'{0}'>".format(str(self))
 
     @staticmethod
     def filter_by_ctnr(ctnr, objects=None):
         objects = objects or SOA.objects
         domains = ctnr.domains.values_list('soa')
-        return objects.filter(id__in=domains)
+        return objects.filter(root_domain__id__in=domains)
+
+    def check_in_ctnr(self, ctnr):
+        return self.root_domain in ctnr.domains.all()
 
     @property
     def rdtype(self):
@@ -144,15 +153,15 @@ class SOA(BaseModel, ObjectUrlMixin, DisplayMixin):
     def get_debug_build_url(self):
         return reverse('build-debug', args=[self.pk])
 
+    @transaction_atomic
     def delete(self, *args, **kwargs):
-        if self.domain_set.exclude(pk=self.root_domain.pk).exists():
-            raise ValidationError(
-                "Child domains exist in this SOA's zone. Delete "
-                "those domains or remove them from this zone before "
-                "deleting this SOA.")
-        self.root_domain.soa = None
-        self.root_domain.save(override_soa=True)
+        root_domain = self.root_domain
         super(SOA, self).delete(*args, **kwargs)
+        root_domain.soa = None
+        # If we don't set the SOA to None, Django complains that the SOA
+        # doesn't exist (which is true).
+        root_domain.save(commit=False)
+        reassign_reverse_records(root_domain, None)
 
     def has_record_set(self, view=None, exclude_ns=False):
         for domain in self.domain_set.all():
@@ -160,55 +169,51 @@ class SOA(BaseModel, ObjectUrlMixin, DisplayMixin):
                 return True
         return False
 
-    def schedule_rebuild(self, commit=True, force=False):
+    def schedule_rebuild(self, save=True, force=False):
         if MIGRATING and not force:
             return
 
         Task.schedule_zone_rebuild(self)
         self.dirty = True
-        if commit:
+        if save:
             self.save()
 
+    @transaction_atomic
     def save(self, *args, **kwargs):
         self.full_clean()
-        if not self.pk:
-            new = True
-            self.dirty = True
-        elif self.dirty:
-            new = False
-        else:
-            new = False
-            db_self = SOA.objects.get(pk=self.pk)
-            fields = [
-                'primary', 'contact', 'expire', 'retry', 'refresh',
-                'root_domain',
-            ]
-            # Leave out serial and dirty so rebuilds don't cause a never ending
-            # build cycle
-            for field in fields:
-                if getattr(db_self, field) != getattr(self, field):
-                    self.schedule_rebuild(commit=False)
 
-        if self.pk:
-            root_children = [d.pk for d in
-                             self.root_domain.get_children_recursive()]
-            for domain in self.domain_set.exclude(pk__in=root_children):
-                domain.soa = None
-                domain.save(override_soa=True)
+        is_new = self.pk is None
+
+        if is_new:
+            self.dirty = True
+        else:
+            db_self = SOA.objects.get(pk=self.pk)
+            if not self.dirty:
+                fields = [
+                    'primary', 'contact', 'expire', 'retry', 'refresh',
+                    'root_domain',
+                ]
+                # Leave out serial and dirty so rebuilds don't cause a
+                # never-ending build cycle.
+                for field in fields:
+                    if getattr(db_self, field) != getattr(self, field):
+                        self.schedule_rebuild(save=False)
 
         super(SOA, self).save(*args, **kwargs)
-        self.root_domain.soa = self
-        try:
-            self.root_domain.save()
-        except Exception, e:
-            if new:
-                self.delete()
 
-            raise e
+        if is_new:
+            # Need to call this after save because new objects won't have a pk.
+            self.schedule_rebuild(save=False)
+            self.root_domain.save(commit=False)
+            reassign_reverse_records(None, self.root_domain)
+        else:
+            if db_self.root_domain != self.root_domain:
+                from cyder.cydns.domain.models import Domain
 
-        if new:
-            # Need to call this after save because new objects won't have a pk
-            self.schedule_rebuild(commit=False)
+                self.root_domain.save(commit=False)
+                db_self.root_domain.save(commit=False)
+                self.root_domain = Domain.objects.get(pk=self.root_domain.pk)
+                reassign_reverse_records(db_self.root_domain, self.root_domain)
 
 
 class SOAAV(EAVBase):
@@ -216,7 +221,52 @@ class SOAAV(EAVBase):
         app_label = 'cyder'
         db_table = 'soa_av'
 
-
     entity = models.ForeignKey(SOA)
     attribute = EAVAttributeField(Attribute,
         type_choices=(ATTRIBUTE_INVENTORY,))
+
+
+def reassign_reverse_records(old_domain, new_domain):
+    from cyder.cydns.ip.utils import ip_to_reverse_name
+
+    up = (None, None)  # from, to
+    down = (None, None)  # from, to
+    if new_domain:
+        if (old_domain and new_domain.is_descendant_of(old_domain) and
+                old_domain.soa == new_domain.master_domain.soa):
+            # new_domain is below old_domain and there is no root domain
+            # between them, so we can take a shortcut.
+            down = (old_domain, new_domain)
+        else:
+            if new_domain.master_domain:
+                parent_root = new_domain.master_domain.zone_root_domain
+            else:
+                parent_root = None
+            down = (parent_root, new_domain)
+    if old_domain:
+        up = (old_domain, old_domain.zone_root_domain)
+
+    if all(down):
+        from cyder.cydns.domain.utils import is_name_descendant_of
+
+        for obj in chain(down[0].reverse_ptr_set.all(),
+                         down[0].reverse_staticintr_set.all()):
+            if is_name_descendant_of(
+                    ip_to_reverse_name(obj.ip_str),
+                    down[1].name):
+                obj.reverse_domain = down[1]
+                obj.save(commit=False)
+    if all(up):
+        for obj in chain(up[0].reverse_ptr_set.all(),
+                         up[0].reverse_staticintr_set.all()):
+            obj.reverse_domain = up[1]
+            obj.save(commit=False)
+
+    if old_domain:
+        still_there = [unicode(x) for x in
+                       chain(old_domain.reverse_ptr_set.all(),
+                             old_domain.reverse_staticintr_set.all())]
+        if still_there:
+            raise ValidationError(
+                u'No reverse domain found for the following objects: ' +
+                u', '.join(still_there))

@@ -4,54 +4,56 @@ from cyder.cydns.validation import validate_ip_type
 from cyder.cydns.domain.utils import name_to_domain
 
 
-def check_for_reverse_domain(ip_str, ip_type):
-    rvname = nibbilize(ip_str) if ip_type == '6' else ip_str
-    rvname = ip_to_domain_name(rvname, ip_type=ip_type)
-    reverse_domain = name_to_domain(rvname)
-    if (reverse_domain is None or reverse_domain.name in
-            ('arpa', 'in-addr.arpa', 'ip6.arpa')):
-        raise ValidationError(
-            "No reverse Domain found for {0} ".format(ip_str)
-        )
-
-
-def ip_to_dns_form(ip, uppercase=False):
+def _labels_to_reverse_name(labels, ip_type):
     """
-    Convert an ip to dns zone form. The ip is assumed to be in valid
-    format.
+    Convert a list of octets (IPv4) or nibbles (IPv6) to a reverse domain name
     """
-    if not isinstance(ip, basestring):
-        raise ValidationError("Ip is not of type string.")
-    if ip.find(':') > -1:
-        octets = nibbilize(ip).split('.')
-        name = '.ip6.arpa'
-    else:
-        octets = ip.split('.')
-        name = '.in-addr.arpa'
-
-    if uppercase:
-        name = name.uppercase
-
-    name = '.'.join(list(reversed(octets))) + name + "."
+    name = '.'.join(list(reversed(labels)))
+    name += '.in-addr.arpa' if ip_type == '4' else '.ip6.arpa'
     return name
 
 
-def ip_to_domain_name(ip, ip_type='4', uppercase=False):
-    """Convert an ip to dns zone form. The ip is assumed to be in valid
-    format."""
-    if not isinstance(ip, basestring):
-        raise ValidationError("Ip is not of type string.")
-    validate_ip_type(ip_type)
-    octets = ip.split('.')
+def ip_prefix_to_reverse_name(ip, ip_type):
+    """
+    Convert an IP prefix in octet (IPv4) or nibble (IPv6) form to a reverse
+    domain name
+    """
+    return _labels_to_reverse_name(ip.split('.'), ip_type=ip_type)
+
+
+def ip_to_reverse_name(ip):
+    """Convert an IP address to a reverse domain name"""
+    ip_type = '6' if ':' in ip else '4'
     if ip_type == '4':
-        name = '.in-addr.arpa'
-    if ip_type == '6':
-        name = '.ip6.arpa'
-    if uppercase:
-        name = name.uppercase
+        labels = ip.split('.')
+    else:
+        ip = ipaddr.IPv6Address(ip).exploded
+        labels = list(ip.replace(':', ''))
 
-    name = '.'.join(list(reversed(octets))) + name
-    return name
+    return _labels_to_reverse_name(labels, ip_type)
+
+
+def reverse_name_to_ip(name):
+    if name.endswith('in-addr.arpa'):  # IPv4
+        octets = reversed(name.split('.')[:-2])
+        return '.'.join(octets)
+    elif name.endswith('ip6.arpa'):  # IPv6
+        nibbles = reversed(name.split('.')[:-2])
+        b = bytearray()
+        count = 0
+        for nibble in nibbles:
+            if count != 0 and count % 4 == 0:
+                b.append(':')
+            b.append(nibble)
+            count += 1
+        while count % 4 != 0:
+            b.append('0')
+            count += 1
+        if count < 64:
+            b.extend('::')
+        return str(b)
+    else:
+        raise ValueError('Invalid reverse domain')
 
 
 """
@@ -65,8 +67,9 @@ def ip_to_domain_name(ip, ip_type='4', uppercase=False):
 
 
 def nibbilize(addr):
-    """Given an IPv6 address is 'colon' format, return the address in
-    'nibble' form::
+    """
+    Given an IPv6 address is 'colon' format, return the address in 'nibble'
+    form::
 
         nibblize('2620:0105:F000::1')
         '2.6.2.0.0.1.0.5.F.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1'

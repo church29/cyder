@@ -49,6 +49,7 @@ def range_usage_get_create(Klass, **kwargs):
         obj = Klass.objects.get(**kwargs)
     except Klass.DoesNotExist:
         obj = Klass(**kwargs)
+        obj.full_clean()
         created = True
 
     obj.save(update_range_usage=False)
@@ -90,6 +91,9 @@ def get_label_domain_workaround(fqdn):
         domain, _ = Domain.objects.get_or_create(name=domain_name)
         for obj in objs:
             obj.label = ""
+            ctnr_set = obj.domain.ctnr_set
+            for ctnr in ctnr_set.all():
+                ctnr.domains.add(domain)
             obj.domain = domain
             obj.save()
 

@@ -4,6 +4,8 @@ from django.db.models import signals
 
 from cyder.base.mixins import ObjectUrlMixin
 from cyder.base.models import BaseModel
+from cyder.base.validators import validate_integer_field
+from cyder.base.utils import transaction_atomic
 from cyder.core.cyuser import backends
 from cyder.core.ctnr.models import Ctnr
 
@@ -11,7 +13,8 @@ from cyder.core.ctnr.models import Ctnr
 class UserProfile(BaseModel, ObjectUrlMixin):
     user = models.OneToOneField(User, related_name='profile')
     default_ctnr = models.ForeignKey(Ctnr, default=2)
-    phone_number = models.IntegerField(null=True)
+    phone_number = models.IntegerField(
+        null=True, blank=True, validators=[validate_integer_field])
 
     has_perm = backends.has_perm
     search_fields = ('user__username', 'user__first_name', 'user__last_name')
@@ -20,7 +23,7 @@ class UserProfile(BaseModel, ObjectUrlMixin):
         app_label = 'cyder'
         db_table = 'auth_user_profile'
 
-    def __str__(self):
+    def __unicode__(self):
         return self.user.username
 
     def details(self):
@@ -34,7 +37,10 @@ class UserProfile(BaseModel, ObjectUrlMixin):
         ]
         return data
 
+    @transaction_atomic
     def save(self, *args, **kwargs):
+        self.full_clean()
+
         if not self.pk:
             try:
                 p = UserProfile.objects.get(user=self.user)
@@ -52,6 +58,9 @@ class UserProfile(BaseModel, ObjectUrlMixin):
         else:
             return UserProfile.objects.filter(
                 pk__in=ctnr.users.all().values_list('profile', flat=True))
+
+    def check_in_ctnr(self, ctnr):
+        return ctnr.check_contains_obj(self.user)
 
 
 def create_user_profile(sender, **kwargs):

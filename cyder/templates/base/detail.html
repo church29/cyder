@@ -1,7 +1,7 @@
 {% extends "base/base.html" %}
 {% from "base/tables.html" import render_table %}
 
-{% set obj_type_perm = request.user.get_profile().has_perm(request, 2, obj_class=obj_type) %}
+{% set obj_type_perm = request.user.get_profile().has_perm(request, 2, obj=obj) %}
 
 {% block title %}
   {{ pretty_obj_type|smart_capitalize }} {{ obj.pretty_name }}
@@ -9,9 +9,13 @@
 
 {% block action_bar %}
   {% if obj_type_perm %}
-    {% if obj.get_update_url %}
-      <a class="btn btn-primary update" href="{{ obj.get_update_url() }}" data-pk="{{ obj.pk }}"
-        data-objType= {{ obj_type }} data-prettyObjType="{{ obj.pretty_type }}">Edit</a>
+    {% if obj.get_update_url and obj_type != "ctnr" %}
+      <a class="btn btn-primary js-get-form" href="{{ obj.get_update_url() }}"
+          data-kwargs='{"obj_type": "{{ obj_type }}", "pk": "{{ obj.pk }}",
+                        "pretty_obj_type": "{{ obj.pretty_type }}",
+                        "get_url": "{{ url('get-update-form') }}",
+                        "obj_name": "{{ obj.pretty_name }}"}'>
+      Edit</a>
     {% endif %}
     {% if obj.get_delete_url %}
       <a class="btn btn-danger" id="delete" href="{{ obj.get_delete_url() }}"
@@ -40,12 +44,24 @@
 {% block content %}
   {{ render_table(request, obj_table) }}
   {% for table in tables %}
-    {% if table.table %}
-      <h2>{{ table.name }}</h2>
-      {% with page_obj = table.page_obj %}
-        {% include "base/includes/pagination.html" %}
-      {% endwith %}
-      {{ render_table(request, table.table) }}
+    {% if table.table or "Attributes" in table.name %}
+      {% if "Attributes" in table.name %}
+        {% if table.table %}
+          <h3 class="attrs_title">{{ table.name }}</h3>
+          {% with page_obj = table.page_obj %}
+            {% include "base/includes/pagination.html" %}
+          {% endwith %}
+          {{ render_table(request, table.table, 'attrs_table') }}
+        {% else %}
+          {% include "base/attrs_table.html" %}
+        {% endif %}
+      {% else %}
+        <h3>{{ table.name }}</h3>
+        {% with page_obj = table.page_obj %}
+          {% include "base/includes/pagination.html" %}
+        {% endwith %}
+        {{ render_table(request, table.table) }}
+      {% endif %}
     {% endif %}
   {% endfor %}
 {% endblock %}

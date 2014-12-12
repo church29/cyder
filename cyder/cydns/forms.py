@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models.loading import get_model
 from django.forms import ModelForm
 from django.forms.models import construct_instance
 from django.core.exceptions import ValidationError
@@ -14,9 +15,16 @@ class ViewChoiceForm(ModelForm):
 
 
 class DNSForm(ViewChoiceForm):
+    comment = forms.CharField(widget=forms.HiddenInput, required=False)
+    description = forms.CharField(
+        widget=forms.Textarea(attrs={'rows': 4, 'cols': 50}),
+        required=False)
+
     def clean(self):
         super(DNSForm, self).clean()
-        validate_views(self.cleaned_data)
+        Nameserver = get_model('cyder', 'nameserver')
+        if not isinstance(self.instance, Nameserver):
+            validate_views(self.cleaned_data)
 
         return self.cleaned_data
 

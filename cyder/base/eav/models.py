@@ -7,7 +7,7 @@ from cyder.base.eav.utils import is_hex_byte_sequence
 from cyder.base.eav.validators import VALUE_TYPES
 from cyder.base.mixins import ObjectUrlMixin
 from cyder.base.models import BaseModel
-from cyder.base.utils import classproperty
+from cyder.base.utils import classproperty, transaction_atomic
 
 
 class Attribute(models.Model):
@@ -45,6 +45,9 @@ class EAVBase(BaseModel, ObjectUrlMixin):
     class Meta:
         abstract = True
         unique_together = ('entity', 'attribute')
+
+    def check_in_ctnr(self, ctnr):
+        return ctnr.check_contains_obj(self.entity)
 
     @property
     def pretty_name(self):
@@ -84,3 +87,9 @@ class EAVBase(BaseModel, ObjectUrlMixin):
             ('Value', 'value', self.value),
         ]
         return data
+
+    @transaction_atomic
+    def save(self, *args, **kwargs):
+        self.full_clean()
+
+        super(EAVBase, self).save(*args, **kwargs)

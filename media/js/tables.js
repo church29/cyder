@@ -1,10 +1,4 @@
-function enableEditableGrid(allPostData) {
-    var $eg = $('#eg');
-    var csrfToken = $('#view-metadata').attr('data-csrfToken');
-    if (!$eg) {
-        return;
-    }
-
+function cleanTablesForEditableGrid() {
     // Remove Action column.
     if ($('.actions_column')) {
         $('.actions_column').remove();
@@ -24,7 +18,34 @@ function enableEditableGrid(allPostData) {
         }
         $td.text($td.text().trim());
     });
+}
 
+
+/*
+Callback function on change. Send whatever was changed so the change
+can be validated and the object can be updated.
+*/
+function editableGridCallback(rowIndex, columnIndex, oldValue, newValue, row) {
+    var postData = {};
+    var csrfToken = $('#view-metadata').attr('data-csrfToken');
+    postData[editableGrid.getColumnName(columnIndex)] = newValue;
+    postData.csrfmiddlewaretoken = csrfToken;
+    $.post($(row).attr('data-url'), postData, function(resp) {
+        if (resp && resp.error) {
+            $(row).after($('<tr></tr>').html(resp.error[0]));
+        }
+    }, 'json');
+}
+
+
+function enableEditableGrid( allPostData ) {
+    var $eg = $('#eg');
+    var csrfToken = $('#view-metadata').attr('data-csrfToken');
+    if (!$eg) {
+        return;
+    }
+
+    cleanTablesForEditableGrid();
     editableGrid = new EditableGrid("My Editable Grid");
     editableGrid.loadJSONFromString($eg.attr('data-metadata'));
     editableGrid.modelChanged = function(rowIndex, columnIndex, oldValue, newValue, row) {

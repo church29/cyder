@@ -1,7 +1,10 @@
 from django.core.urlresolvers import reverse
-from cyder.base.constants import (DHCP_OBJECTS, DNS_OBJECTS, CORE_OBJECTS,
-                                  ACTION_UPDATE)
-from cyder.base.helpers import prettify_obj_type, cached_property
+from django.db.models.query import QuerySet
+
+from cyder.base.constants import ACTION_UPDATE
+from cyder.base.helpers import cached_property
+
+import json
 
 
 class Tablefier:
@@ -22,6 +25,13 @@ class Tablefier:
             self.update = update
 
     @cached_property
+    def profile(self):
+        if self.request:
+            return self.request.user.get_profile()
+        else:
+            return None
+
+    @cached_property
     def first_obj(self):
         return self.objects[0]
 
@@ -35,10 +45,9 @@ class Tablefier:
 
     @cached_property
     def can_update(self):
-        request = self.request
-        if (request and request.user.get_profile().has_perm(
-                request, ACTION_UPDATE, obj_class=self.klass) and
-                hasattr(self.klass, 'get_update_url')) and self.update is True:
+        if (self.profile and self.profile.has_perm(
+                self.request, ACTION_UPDATE, obj_class=self.klass) and
+                hasattr(self.klass, 'get_update_url') and self.update):
             return True
         return False
 
@@ -61,20 +70,22 @@ class Tablefier:
         for title, sort_field, value in data:
             headers.append([title, sort_field])
 
+        if self.views:
+            headers.append(['Views', None])
+            if (hasattr(self.objects, 'object_list') and
+                    isinstance(self.objects.object_list, QuerySet)):
+                self.objects.object_list = (
+                    self.objects.object_list.prefetch_related('views'))
+
         if self.extra_cols:
             for col in self.extra_cols:
                 headers.append([col['header'], col['sort_field']])
 
-        if self.views:
-            headers.append(['Views', None])
-            if hasattr(self.objects, 'object_list'):
-                self.objects.object_list = (
-                    self.objects.object_list.prefetch_related('views'))
-
         if self.can_update:
             headers.append(['Actions', None])
 
-        if hasattr(self.objects, 'object_list'):
+        if (hasattr(self.objects, 'object_list') and
+                isinstance(self.objects.object_list, QuerySet)):
             self.objects.object_list = (self.objects.object_list
                 .select_related(*[f for _, f in headers if f]))
 
@@ -101,12 +112,12 @@ class Tablefier:
         if self.add_info and value == obj:
             col = {'value': [unicode(value)], 'url': [None]}
         else:
-            col = {'value': [value], 'url': [self.grab_url(value)]}
+            col = {'value': [unicode(value)], 'url': [self.grab_url(value)]}
         return col
 
     @staticmethod
     def build_extra(d):
-        data_fields = ['value', 'url', 'img', 'class']
+        data_fields = ['value', 'url', 'img', 'class', 'data']
         if not isinstance(d['value'], list):
             for k, v in d.items():
                 d[k] = [v]
@@ -127,20 +138,27 @@ class Tablefier:
             col = {'value': ['None'], 'url': [None]}
         return col
 
-    @staticmethod
-    def build_update_field(obj):
-        obj_type = obj._meta.db_table
-        col = {'value': ['Update', 'Delete'],
-               'url': [obj.get_update_url(), obj.get_delete_url()],
-               'data': [[('pk', obj.id),
-                         ('objName', obj.pretty_name),
-                         ('objType', obj._meta.db_table),
-                         ('getUrl', reverse('get-update-form')),
-                         ('prettyObjType', obj.pretty_type)],
-                         [('kwargs', '{"obj_type": "' + str(obj._meta.db_table)
-                              + '", "pk": "' + str(obj.id) + '"}')]],
-               'class': ['update', 'delete'],
-               'img': ['/media/img/update.png', '/media/img/delete.png']}
+    def build_update_field(self, obj):
+        if self.profile and self.profile.has_perm(self.request, ACTION_UPDATE,
+                                                  obj=obj):
+            data = [
+                [('kwargs', json.dumps({
+                    'obj_type': obj._meta.db_table, 'pk': obj.id,
+                    'obj_name': obj.pretty_name,
+                    'get_url': reverse('get-update-form'),
+                    'pretty_obj_type': obj.pretty_type}))],
+                [('kwargs', json.dumps({
+                    'obj_type': obj._meta.db_table,
+                    'pk': obj.id}))]]
+
+            col = {'value': ['Update', 'Delete'],
+                   'url': [obj.get_update_url(), obj.get_delete_url()],
+                   'data': data,
+                   'class': ['js-get-form', 'delete table_delete'],
+                   'img': ['/media/img/update.png', '/media/img/delete.png']}
+        else:
+            col = {'value': []}
+
         return col
 
     def get_data(self):
@@ -149,7 +167,6 @@ class Tablefier:
             extra_datas = zip(*[col['data'] for col in self.extra_cols])
         else:
             extra_datas = [[]] * len(self.objects)
-
         for obj, extra_data in zip(self.objects, extra_datas):
             row_data = []
             if self.add_info:
@@ -161,11 +178,11 @@ class Tablefier:
             for title, field, value in details['data']:
                 row_data.append(self.build_data(obj, value))
 
-            for d in extra_data:
-                row_data.append(self.build_extra(d))
-
             if self.views:
                 row_data.append(self.build_view_field(obj))
+
+            for d in extra_data:
+                row_data.append(self.build_extra(d))
 
             if self.can_update:
                 row_data.append(self.build_update_field(obj))

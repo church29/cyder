@@ -1,3 +1,5 @@
+import datetime
+import re
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -5,18 +7,16 @@ from cyder.base.eav.constants import (ATTRIBUTE_OPTION, ATTRIBUTE_STATEMENT,
                                       ATTRIBUTE_INVENTORY)
 from cyder.base.eav.fields import EAVAttributeField
 from cyder.base.eav.models import Attribute, EAVBase
+from cyder.base.mixins import ObjectUrlMixin
+from cyder.base.models import BaseModel, ExpirableMixin
+from cyder.base.utils import transaction_atomic
+from cyder.core.fields import MacAddrField
+from cyder.core.ctnr.models import Ctnr
+from cyder.core.system.models import System
 from cyder.cydhcp.interface.dynamic_intr.validation import is_dynamic_range
 from cyder.cydhcp.range.models import Range
 from cyder.cydhcp.utils import format_mac, join_dhcp_args
 from cyder.cydhcp.workgroup.models import Workgroup
-from cyder.core.fields import MacAddrField
-from cyder.core.ctnr.models import Ctnr
-from cyder.core.system.models import System
-from cyder.base.mixins import ObjectUrlMixin
-from cyder.base.models import BaseModel, ExpirableMixin
-
-import datetime
-import re
 
 
 class DynamicInterface(BaseModel, ObjectUrlMixin, ExpirableMixin):
@@ -37,17 +37,18 @@ class DynamicInterface(BaseModel, ObjectUrlMixin, ExpirableMixin):
     class Meta:
         app_label = 'cyder'
         db_table = 'dynamic_interface'
+        unique_together = (('range', 'mac'),)
 
     @staticmethod
     def filter_by_ctnr(ctnr, objects=None):
         objects = objects or DynamicInterface.objects
         return objects.filter(ctnr=ctnr)
 
-    def __str__(self):
-        return "{0}".format(self.mac)
-
-    def __repr__(self):
-        return "Interface {0}".format(str(self))
+    def __unicode__(self):
+        if self.mac:
+            return self.mac
+        else:
+            return '(no MAC address)'
 
     def details(self):
         data = super(DynamicInterface, self).details()
@@ -74,7 +75,7 @@ class DynamicInterface(BaseModel, ObjectUrlMixin, ExpirableMixin):
         s = s.replace('%6m', self.mac.replace(':', '')[0:6])
         return s
 
-    def build_host(self, options=None):
+    def build_host(self, options=()):
         build_str = "\thost {0} {{\n".format(self.get_fqdn())
         build_str += "\t\thardware ethernet {0};\n".format(self.mac)
         build_str += join_dhcp_args(map(self.format_host_option, options),
@@ -111,28 +112,32 @@ class DynamicInterface(BaseModel, ObjectUrlMixin, ExpirableMixin):
 
     def clean(self, *args, **kwargs):
         super(DynamicInterface, self).clean(*args, **kwargs)
+        if self.mac:
+            siblings = self.range.dynamicinterface_set.filter(mac=self.mac)
+            if self.pk is not None:
+                siblings = siblings.exclude(pk=self.pk)
+            if siblings.exists():
+                raise ValidationError(
+                    "MAC address must be unique in this interface's range")
 
-        siblings = self.range.dynamicinterface_set.filter(mac=self.mac)
-        if self.id:
-            siblings.exclude(id=self.id)
-        if siblings.exists():
-            raise ValidationError(
-                "MAC address must be unique in this interface's range")
-
+    @transaction_atomic
     def delete(self, *args, **kwargs):
         delete_system = kwargs.pop('delete_system', True)
         update_range_usage = kwargs.pop('update_range_usage', True)
         rng = self.range
         if delete_system:
-            if (not self.system.dynamicinterface_set.all().exclude(
+            if (not self.system.dynamicinterface_set.exclude(
                     id=self.id).exists() and
-                    not self.system.staticinterface_set.all().exists()):
-                self.system.delete()
+                    not self.system.staticinterface_set.exists()):
+                self.system.delete(commit=False)
         super(DynamicInterface, self).delete()
         if rng and update_range_usage:
-            rng.save()
+            rng.save(commit=False)
 
+    @transaction_atomic
     def save(self, *args, **kwargs):
+        self.full_clean()
+
         update_range_usage = kwargs.pop('update_range_usage', True)
         old_range = None
         if self.id is not None:
@@ -140,9 +145,9 @@ class DynamicInterface(BaseModel, ObjectUrlMixin, ExpirableMixin):
 
         super(DynamicInterface, self).save()
         if self.range and update_range_usage:
-            self.range.save()
+            self.range.save(commit=False)
             if old_range:
-                old_range.save()
+                old_range.save(commit=False)
 
 
 class DynamicInterfaceAV(EAVBase):
