@@ -245,3 +245,51 @@ function ajax_form_submit( url, fields, csrfToken ) {
     });
     return deferred;
 }
+
+function make_sort_url( url, name ) {
+    var a = $('<a>');
+    a.attr( 'class', 'sort-icon ed-sprite-sort-asc');
+    a.attr( 'href', url );
+    a.text( name );
+    return a;
+}
+
+function parse_table( table_dict, klass ) {
+    var deferred = $.Deferred();
+    var table = $( '<table>' );
+    var th = $( '<th>' );
+    var thead = $( '<thead>' );
+    var name;
+    var link;
+    table_dict = JSON.parse( table_dict );
+    table.attr( 'id', 'egtable' ).attr( 'class', klass );
+
+    jQuery.each( table_dict.headers, function ( i, header ) {
+        var tr = $( '<tr>' );
+        name = header[0].toLowerCase();
+        th.attr( 'class', name + '_column' );
+        if ( header[1] != 'None' ) {
+            link = make_sort_url( name, header[1] );
+            th.append( link );
+        } else {
+            th.text( name );
+        }
+        tr.append( th );
+        thead.append( tr );
+    });
+    table.append( thead );
+    jQuery.each( table_dict.data , function( i, row ) {
+        var tr = $( '<tr>' );
+        tr.attr( 'id', name + '_' + i );
+        tr.attr( 'data-url', table_dict.postback_urls );
+        jQuery.each(  row, function( j, column ) {
+            var td = $( '<td>' );
+            td.attr( 'class', column.class );
+            jQuery.each( column.value, function( k, cell ) {
+                if ( col.url     
+            });
+        });
+    });
+
+    return deferred;
+}
