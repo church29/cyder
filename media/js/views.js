@@ -66,18 +66,29 @@ $(document).ready( function() {
         $('#id_attribute').val( '' );
     });
 
+    function getButtonSelectors() {
+        var selectors = (
+            + '.js-get-form, '
+            + 'js-create-object, '
+            + '.update, '
+            + '.cancel, '
+            + '#batch_update_btn'
+        );
+        return selectors;
+    }
+
     // button behavior logic, see css
     function buttonLogic() {
-        $('.js-get-form, .js-create-object, .update, .cancel').addClass( 'hover' );
+        $(getButtonSelectors()).addClass( 'hover' );
         if ( $(this).hasClass( 'selected' ) ) {
             $(this).removeClass( 'selected' );
         } else {
-            $('.js-get-form, .js-create-object, .update, .cancel').removeClass( 'selected' );
+            $(getButtonSelectors()).removeClass( 'selected' );
             $(this).removeClass( 'hover' ).addClass( 'selected' );
         }
     }
-    $( document ).on('click', '.js-get-form, js-create-object, .update, .cancel', buttonLogic );
 
+    $( document ).on( 'click', getButtonSelectors(), buttonLogic );
 
     $( document ).on( 'click', '.js-get-form', function( e ) {
         // Show update form on clicking update icon.

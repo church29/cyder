@@ -1,37 +1,65 @@
-function enableBatchUpdate() {
-    var csrfToken = $('#view-metadata').attr('data-csrfToken');
-    //Remove editable grid mode
-    if ($('#enable-eg').length) {
-        $('#enable-eg').remove();
-    }
-
+function cleanTables() {
     // Remove Action column.
-    if ($('th:contains("Actions")')) {
+    if ( $('th:contains("Actions")') ) {
         $('th:contains("Actions")').remove();
         $('td:last-child').remove();
     }
 
     // Remove Info column.
-    if ($('th:contains("Info")')) {
+    if ( $('th:contains("Info")') ) {
         $('th:contains("Info")').remove();
         $('td:first-child').remove();
     }
 
-    $('#egtable').find('td, th').each(function (i, td) {
+    // Strip links and paragraph tags, remove table cell markdown until
+    // we do CellRenderers.
+    $('#egtable').find( 'td, th' ).each( function ( i, td ) {
         var $td = $(td);
-        if ($td.children().length) {
-            $td.text($td.children()[0].innerHTML);
+        if ( $td.children().length ) {
+            $td.text( $td.children()[0].innerHTML );
         }
-        $td.text($td.text().trim());
+        $td.text( $td.text().trim() );
     });
 
-    $('#egtable').find('thead').find('tr:last').append('<th>select <input type="checkbox" id="selectAll" /></th>');
-    $('#egtable').find('tbody').find('tr').each(function (i, tr) {
+}
+
+
+function removeEditableGrid() {
+    if ( $('#enable-eg').length ) {
+        $('#enable-eg').remove();
+    }
+}
+
+
+function removeBatchUpdate() {
+    if ($('#enable-batch-update').length) {
+        $('#enable-batch-update').remove();
+    }
+}
+
+
+function appendSelectAllCheckBox() {
+    $('#egtable').find( 'thead' ).find( 'tr:last' )
+        .append( '<th>select <input type="checkbox" id="selectAll" /></th>' );
+}
+
+
+function appendCheckBoxesToRows() {
+    $('#egtable').find( 'tbody' ).find( 'tr' ).each( function ( i, tr ) {
         var $id = $(tr).attr('data-url').split('/')[3];
         $(tr).append('<td><input type="checkbox" id="' + $id + '" name="interfaceCheck" /></td>');
     });
+}
 
-    $('#system_create').css({'display': 'none'});
+
+function enableBatchUpdate() {
+    var csrfToken = $('#view-metadata').attr( 'data-csrfToken' );
+    cleanTables();
+    removeEditableGrid();
+    appendSelectAllCheckBox();
+    appendCheckBoxesToRows();
+
+    $('#system_create').remove();
     $('#batch_update_btn').css({'display': 'block'});
 
     $('#batch_update_btn, #batch-cancel').click(function (e) {
@@ -39,10 +67,10 @@ function enableBatchUpdate() {
         $('#batch-form').slideToggle();
     });
 
-    $('#selectAll').change(function() {
-        var $all = $(this).attr('checked');
-        $('input[name=interfaceCheck]').each(function() {
-            $(this).attr('checked', $all);
+    $('#selectAll').change( function() {
+        var all = $(this).attr( 'checked' ) == "checked" ? true : false;
+        $('input[name=interfaceCheck]').each( function() {
+            $(this).attr( 'checked', all );
         });
     });
 
@@ -106,29 +134,6 @@ function enableBatchUpdate() {
 }
 
 
-function cleanTablesForEditableGrid() {
-    // Remove Action column.
-    if ($('th:contains("Actions")')) {
-        $('th:contains("Actions")').remove();
-        $('td:last-child').remove();
-    }
-
-    // Remove Info column.
-    if ($('th:contains("Info")')) {
-        $('th:contains("Info")').remove();
-        $('td:first-child').remove();
-    }
-
-    // Strip links and paragraph tags, remove table cell markdown until
-    // we do CellRenderers.
-    $('#egtable').find('td, th').each(function (i, td) {
-        var $td = $(td);
-        if ($td.children().length) {
-            $td.text($td.children()[0].innerHTML);
-        }
-        $td.text($td.text().trim());
-    });
-}
 
 
 /*
@@ -154,12 +159,8 @@ function enableEditableGrid() {
         return;
     }
 
-    //Remove batch update mode
-    if ($('#enable-batch-update').length) {
-        $('#enable-batch-update').remove();
-    }
-
-    cleanTablesForEditableGrid();
+    cleanTables();
+    removeBatchUpdate();
     editableGrid = new EditableGrid("My Editable Grid");
     editableGrid.loadJSONFromString($eg.attr('data-metadata'));
     editableGrid.modelChanged = editableGridCallback;
