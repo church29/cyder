@@ -58,12 +58,10 @@ function enableBatchUpdate() {
     removeEditableGrid();
     appendSelectAllCheckBox();
     appendCheckBoxesToRows();
-
     $('#system_create').remove();
     $('#batch_update_btn').css({'display': 'block'});
 
     $('#batch_update_btn, #batch-cancel').click(function (e) {
-        e.preventDefault();
         $('#batch-form').slideToggle();
     });
 
@@ -118,18 +116,16 @@ function enableBatchUpdate() {
             site: site_id,
         };
         $.post("/dhcp/interface/batch_update/", postData, function(data) {
-        if (data.success) {
-            location.reload();
-        }
-        if (data.error) {
-            if (form.find('#error').length) {
-                form.find('#error').remove();
+            if (data.success) {
+                location.reload();
             }
-            form.append('<p id="error"><font color="red">' + data.error + '</font></p>');
-        }
+            if (data.error) {
+                if (form.find('#error').length) {
+                    form.find('#error').remove();
+                }
+                form.append('<p id="error"><font color="red">' + data.error + '</font></p>');
+            }
         }, 'json');
-
-
     });
 }
 
