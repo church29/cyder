@@ -2,8 +2,9 @@ function enableBatchUpdate() {
     var csrfToken = $('#view-metadata').attr('data-csrfToken');
     //Remove editable grid mode
     if ($('#enable-eg').length) {
-        $('#enable-eg').remove()
-    };
+        $('#enable-eg').remove();
+    }
+
     // Remove Action column.
     if ($('th:contains("Actions")')) {
         $('th:contains("Actions")').remove();
@@ -48,8 +49,8 @@ function enableBatchUpdate() {
     $('input:radio[name=range_type]').live('change', function() {
         var postData = {
             csrfmiddlewaretoken: csrfToken,
-            range_type: $(this).val()
-        }
+            range_type: $(this).val(),
+        };
         $.post("/dhcp/interface/get_ranges/", postData, function(data) {
             if (data.ranges) {
                 form = $('#batch-hidden-inner-form');
@@ -60,7 +61,7 @@ function enableBatchUpdate() {
                 });
             } else {
                 return false;
-            };
+            }
         }, 'json');
     });
 
@@ -87,39 +88,25 @@ function enableBatchUpdate() {
             range_type: range_type,
             csrfmiddlewaretoken: csrfToken,
             site: site_id,
-        }
+        };
         $.post("/dhcp/interface/batch_update/", postData, function(data) {
         if (data.success) {
             location.reload();
-        };
+        }
         if (data.error) {
             if (form.find('#error').length) {
                 form.find('#error').remove();
-            };
+            }
             form.append('<p id="error"><font color="red">' + data.error + '</font></p>');
-        };
+        }
         }, 'json');
 
 
     });
-
-
-
 }
 
 
-function enableEditableGrid() {
-    var $eg = $('#eg');
-    var csrfToken = $('#view-metadata').attr('data-csrfToken');
-    if (!$eg) {
-        return;
-    }
-
-    //Remove batch update mode
-    if ($('#enable-batch-update').length) {
-        $('#enable-batch-update').remove()
-    };
-
+function cleanTablesForEditableGrid() {
     // Remove Action column.
     if ($('th:contains("Actions")')) {
         $('th:contains("Actions")').remove();
@@ -141,23 +128,41 @@ function enableEditableGrid() {
         }
         $td.text($td.text().trim());
     });
+}
 
+
+/*
+Callback function on change. Send whatever was changed so the change
+can be validated and the object can be updated.
+*/
+function editableGridCallback(rowIndex, columnIndex, oldValue, newValue, row) {
+    var postData = {};
+    var csrfToken = $('#view-metadata').attr('data-csrfToken');
+    postData[editableGrid.getColumnName(columnIndex)] = newValue;
+    postData.csrfmiddlewaretoken = csrfToken;
+    $.post($(row).attr('data-url'), postData, function(resp) {
+        if (resp && resp.error) {
+            $(row).after($('<tr></tr>').html(resp.error[0]));
+        }
+    }, 'json');
+}
+
+
+function enableEditableGrid() {
+    var $eg = $('#eg');
+    if (!$eg) {
+        return;
+    }
+
+    //Remove batch update mode
+    if ($('#enable-batch-update').length) {
+        $('#enable-batch-update').remove();
+    }
+
+    cleanTablesForEditableGrid();
     editableGrid = new EditableGrid("My Editable Grid");
     editableGrid.loadJSONFromString($eg.attr('data-metadata'));
-    editableGrid.modelChanged = function(rowIndex, columnIndex, oldValue, newValue, row) {
-        /*
-        Callback function on change. Send whatever was changed so the change
-        can be validated and the object can be updated.
-        */
-        var postData = {};
-        postData[editableGrid.getColumnName(columnIndex)] = newValue;
-        postData['csrfmiddlewaretoken'] = csrfToken;
-        $.post($(row).attr('data-url'), postData, function(resp) {
-            if (resp && resp.error) {
-                $(row).after($('<tr></tr>').html(resp.error[0]));
-            }
-        }, 'json');
-    };
+    editableGrid.modelChanged = editableGridCallback;
     editableGrid.attachToHTMLTable('egtable');
     editableGrid.renderGrid();
 }

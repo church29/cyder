@@ -6,30 +6,30 @@ from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail, BadHeaderError
 from django.core.urlresolvers import reverse
+from django.db.models import get_model
+from django.db.utils import DatabaseError
 from django.http import Http404, HttpResponse
 from django.forms import ValidationError, ModelChoiceField, HiddenInput
-from django.forms.util import ErrorList, ErrorDict
-from django.db import IntegrityError
-from django.db.models import get_model
+from django.forms.util import ErrorDict
 from django.shortcuts import (get_object_or_404, redirect, render,
                               render_to_response)
 from django.views.generic import (CreateView, DeleteView, DetailView,
                                   ListView, UpdateView)
+
 from cyder.base.constants import (ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE,
                                   get_klasses)
+from cyder.base.forms import BugReportForm, EditUserForm
 from cyder.base.helpers import do_sort
+from cyder.base.mixins import UsabilityFormMixin
 from cyder.base.utils import (_filter, make_megafilter,
                               make_paginator, tablefy)
-from cyder.base.mixins import UsabilityFormMixin
 from cyder.base.utils import django_pretty_type
-from cyder.core.cyuser.utils import perm, perm_soft
-from cyder.core.cyuser.models import User
-from cyder.core.ctnr.utils import ctnr_delete_session, ctnr_update_session
-from cyder.cydns.utils import ensure_label_domain
-from cyder.base.forms import BugReportForm, EditUserForm
-from cyder.core.cyuser.views import edit_user
 from cyder.core.ctnr.models import CtnrUser
-
+from cyder.core.ctnr.utils import ctnr_delete_session, ctnr_update_session
+from cyder.core.cyuser.models import User
+from cyder.core.cyuser.utils import perm, perm_soft
+from cyder.core.cyuser.views import edit_user
+from cyder.cydns.utils import ensure_label_domain
 from cyder.settings import BUG_REPORT_EMAIL
 
 
@@ -42,13 +42,12 @@ def home(request):
 def admin_page(request):
     if request.POST:
         if 'user' in request.POST:
-            if 'action' not in request.POST:
-                messages.error(request, 'Select an option')
+            if 'edit_action' not in request.POST:
+                return HttpResponse(json.dumps(
+                    {'errors': {'__all__': 'Select an option'}}))
             else:
-                edit_user(request, request.POST['user'],
-                          request.POST['action'])
-
-        return redirect(request.META.get('HTTP_REFERER', ''))
+                return edit_user(request, request.POST['user'],
+                                 request.POST['edit_action'])
 
     else:
         if User.objects.get(
@@ -113,13 +112,14 @@ def send_email(request):
             try:
                 send_mail(subject, message, from_email,
                           [BUG_REPORT_EMAIL])
-                return redirect(reverse('core-index'))
+                return HttpResponse(json.dumps({'success': True}))
 
             except BadHeaderError:
-                return HttpResponse('Invalid header found.')
+                return HttpResponse(json.dumps(
+                    {'errors': {'__all__': 'Invalid header found.'}}))
 
         else:
-            return render(request, 'base/email_form.html', {'form': form})
+            return HttpResponse(json.dumps({'errors': form.errors}))
 
     else:
         session_data = (
@@ -132,7 +132,7 @@ def send_email(request):
 
         form = BugReportForm(initial={'session_data': session_data})
 
-        return render(request, 'base/email_form.html',
+        return render(request, 'base/bug_report.html',
                       {'form': form})
 
 
@@ -160,17 +160,23 @@ def cy_view(request, template, pk=None, obj_type=None):
                         request = ctnr_update_session(request, obj)
 
                     if (hasattr(obj, 'ctnr_set') and
-                            not obj.ctnr_set.all().exists()):
+                            not obj.ctnr_set.exists()):
                         obj.ctnr_set.add(request.session['ctnr'])
 
-                    return HttpResponse(json.dumps({'success': True}))
+                    object_table = tablefy([obj], request=request)
+                    return HttpResponse(
+                        json.dumps({'row': object_table}))
 
             except (ValidationError, ValueError) as e:
                 if form.errors is None:
                     form.errors = ErrorDict()
                 form.errors.update(e.message_dict)
                 return HttpResponse(json.dumps({'errors': form.errors}))
-
+            except DatabaseError as e:  # DatabaseError(number, description)
+                if form.errors is None:
+                    form.errors = ErrorDict()
+                form.errors.setdefault('__all__', []).append(e.args[1])
+                return HttpResponse(json.dumps({'errors': form.errors}))
         else:
             return HttpResponse(json.dumps({'errors': form.errors}))
     elif request.method == 'GET':
@@ -267,24 +273,25 @@ def cy_delete(request):
     if obj.exists():
         obj = obj.get()
     else:
-        messages.error(request, "Object does not exist")
-        return redirect(request.META.get('HTTP_REFERER', ''))
+        return HttpResponse(json.dumps({'error': 'Object does not exist'}))
     try:
         if perm(request, ACTION_DELETE, obj=obj):
             if Klass.__name__ == 'Ctnr':
                 request = ctnr_delete_session(request, obj)
             obj.delete()
     except ValidationError as e:
-        messages.error(request, ', '.join(e.messages))
+        return HttpResponse(json.dumps({'error': ', '.join(e.messages)}))
 
     referer = request.META.get('HTTP_REFERER', obj.get_list_url())
-    # if there is path beyond obj.get_list_url() remove
-    try:
-        referer = referer.replace(referer.split(obj.get_list_url())[1], '')
-    except:
-        referer = request.META.get('HTTP_REFERER', '')
+    if referer.endswith('/'):
+        referer = obj.get_list_url()
 
-    return redirect(referer)
+    # if the obj is an av do not redirect to av list view
+    if 'av' in obj_type:
+        referer = request.META.get( 'HTTP_REFERER', '')
+
+    return HttpResponse(json.dumps({'msg': 'Object was successfully deleted',
+                                    'url': referer}))
 
 
 def cy_detail(request, Klass, template, obj_sets, pk=None, obj=None, **kwargs):
@@ -337,6 +344,8 @@ def cy_detail(request, Klass, template, obj_sets, pk=None, obj=None, **kwargs):
 def get_update_form(request):
     """
     Update view called asynchronously from the list_create view
+    Returns an http response including the form, form_title,
+    submit_btn_label, and pk.
     """
     obj_type = request.GET.get('obj_type', '')
     record_pk = request.GET.get('pk', '')
@@ -350,10 +359,15 @@ def get_update_form(request):
         raise Http404
 
     Klass, FormKlass = get_klasses(obj_type)
+    form_title = 'Creating {0}'.format(Klass.pretty_type)
+    submit_btn_label = 'Create {0}'.format(Klass.pretty_type)
+
     try:
         # Get the object if updating.
         if record_pk:
             record = Klass.objects.get(pk=record_pk)
+            form_title = form_title.replace('Creating', 'Updating')
+            submit_btn_label = submit_btn_label.replace('Create', 'Update')
             if perm(request, ACTION_UPDATE, obj=record):
                 form = FormKlass(instance=record)
         else:
@@ -415,9 +429,13 @@ def get_update_form(request):
 
     if isinstance(form, UsabilityFormMixin):
         form.make_usable(request)
-
     return HttpResponse(
-        json.dumps({'form': form.as_p(), 'pk': record_pk or ''}))
+        json.dumps({
+            'form': form.as_p(),
+            'form_title': form_title,
+            'submit_btn_label': submit_btn_label,
+            'pk': record_pk
+        }))
 
 
 def search_obj(request):
@@ -455,7 +473,7 @@ def table_update(request, pk, obj_type=None):
 
     # DNS specific.
     qd = request.POST.copy()
-    if 'fqdn' in qd:
+    if 'fqdn' in qd and obj_type != "ptr":
         fqdn = qd.pop('fqdn')[0]
         try:
             # Call prune tree later if error, else domain leak.
@@ -469,154 +487,3 @@ def table_update(request, pk, obj_type=None):
         form.save()
         return HttpResponse()
     return HttpResponse(json.dumps({'error': form.errors}))
-
-
-class BaseListView(ListView):
-    """
-    Inherit ListView to specify our pagination.
-    """
-    template_name = 'list.html'
-    extra_context = None
-    paginate_by = 30
-
-    def get_context_data(self, **kwargs):
-        context = super(ListView, self).get_context_data(**kwargs)
-        context['Model'] = self.model
-        context['model_name'] = self.model._meta.db_table
-        context['object_table'] = tablefy(context['page_obj'])
-        context['form_title'] = "{0} Details".format(
-            self.form_class.Meta.model.__name__
-        )
-        # Extra_context takes precedence over original values in context.
-        try:
-            context = dict(context.items() + self.extra_context.items())
-        except AttributeError:
-            pass
-        return context
-
-
-class BaseDetailView(DetailView):
-    template_name = 'detail.html'
-    extra_context = None
-
-    def get_context_data(self, **kwargs):
-        context = super(DetailView, self).get_context_data(**kwargs)
-        context['form_title'] = "{0} Details".format(
-            self.form_class.Meta.model.__name__
-        )
-        # Extra_context takes precedence over original values in context.
-        try:
-            context = dict(context.items() + self.extra_context.items())
-        except AttributeError:
-            pass
-        return context
-
-
-class BaseCreateView(CreateView):
-    template_name = "form.html"
-    extra_context = None
-
-    def post(self, request, *args, **kwargs):
-        try:
-            obj = super(BaseCreateView, self).post(request, *args, **kwargs)
-        # Redirect back to form if errors.
-        except (IntegrityError, ValidationError), e:
-            messages.error(request, str(e))
-            request.method = 'GET'
-            return super(BaseCreateView, self).get(request, *args, **kwargs)
-        return obj
-
-    def get(self, request, *args, **kwargs):
-        return super(BaseCreateView, self).get(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super(CreateView, self).get_context_data(**kwargs)
-        context['form_title'] = "Create {0}".format(
-            self.form_class.Meta.model.__name__
-        )
-        # Extra_context takes precedence over original values in context.
-        try:
-            context = dict(context.items() + self.extra_context.items())
-        except AttributeError:
-            pass
-        return context
-
-
-class BaseUpdateView(UpdateView):
-    template_name = "form.html"
-    extra_context = None
-
-    def __init__(self, *args, **kwargs):
-        super(UpdateView, self).__init__(*args, **kwargs)
-
-    def get_form(self, form_class):
-        form = super(BaseUpdateView, self).get_form(form_class)
-        return form
-
-    def post(self, request, *args, **kwargs):
-        try:
-            obj = super(BaseUpdateView, self).post(request, *args, **kwargs)
-
-        except ValidationError, e:
-            messages.error(request, str(e))
-            request.method = 'GET'
-            return super(BaseUpdateView, self).get(request, *args, **kwargs)
-
-        return obj
-
-    def get(self, request, *args, **kwargs):
-        return super(BaseUpdateView, self).get(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super(UpdateView, self).get_context_data(**kwargs)
-        context['form_title'] = "Update {0}".format(
-            self.form_class.Meta.model.__name__
-        )
-
-        # Extra_context takes precedence over original values in context.
-        try:
-            context = dict(context.items() + self.extra_context.items())
-        except AttributeError:
-            pass
-
-        return context
-
-
-class BaseDeleteView(DeleteView):
-    template_name = 'confirm_delete.html'
-    extra_content = None
-    success_url = '/'
-
-    def get_object(self, queryset=None):
-        obj = super(BaseDeleteView, self).get_object()
-        return obj
-
-    def delete(self, request, *args, **kwargs):
-        # Get the object to delete.
-        obj = get_object_or_404(self.form_class.Meta.model,
-                                pk=kwargs.get('pk', 0))
-        try:
-            view = super(BaseDeleteView, self).delete(request, *args, **kwargs)
-        except ValidationError, e:
-            messages.error(request, "Error: {0}".format(' '.join(e.messages)))
-            return redirect(obj)
-
-        messages.success(request, "Deletion Successful")
-        return view
-
-    def get_context_data(self, **kwargs):
-        context = super(DeleteView, self).get_context_data(**kwargs)
-        context['form_title'] = "Update {0}".format(
-            self.form_class.Meta.model.__name__
-        )
-        # Extra_context takes precedence over original values in context.
-        try:
-            context = dict(context.items() + self.extra_context.items())
-        except AttributeError:
-            pass
-        return context
-
-
-class Base(DetailView):
-    def get(self, request, *args, **kwargs):
-        return render(request, "base.html")

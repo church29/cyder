@@ -3,11 +3,12 @@ from gettext import gettext as _
 from django.db import models
 from django.core.exceptions import ValidationError
 
+from cyder.base.constants import IP_TYPE_6, IP_TYPE_4
+from cyder.base.utils import transaction_atomic
+from cyder.cydhcp.range.utils import find_range
 from cyder.cydns.cname.models import CNAME
 from cyder.cydns.ip.models import Ip
 from cyder.cydns.models import CydnsRecord, LabelDomainMixin
-from cyder.base.constants import IP_TYPE_6, IP_TYPE_4
-from cyder.cydhcp.range.utils import find_range
 
 
 class BaseAddressRecord(Ip, LabelDomainMixin, CydnsRecord):
@@ -18,17 +19,14 @@ class BaseAddressRecord(Ip, LabelDomainMixin, CydnsRecord):
         ... ip_type=ip_type)
 
     """
-    search_fields = ("fqdn", "ip_str")
+    search_fields = ('fqdn', 'ip_str')
+    sort_fields = ('fqdn', 'ip_str')
 
     class Meta:
         abstract = True
 
-    def __str__(self):
-        return '{0} {1} {2}'.format(self.fqdn,
-                                    self.rdtype, str(self.ip_str))
-
-    def __repr__(self):
-        return "<Address Record '{0}'>".format(str(self))
+    def __unicode__(self):
+        return u'{} {} {}'.format(self.fqdn, self.rdtype, self.ip_str)
 
     @property
     def rdtype(self):
@@ -47,12 +45,13 @@ class BaseAddressRecord(Ip, LabelDomainMixin, CydnsRecord):
         ]}
 
     def clean(self, *args, **kwargs):
-        self.clean_ip()
         ignore_intr = kwargs.pop("ignore_intr", False)
         validate_glue = kwargs.pop("validate_glue", True)
 
         super(BaseAddressRecord, self).clean(*args, **kwargs)
 
+        self.clean_ip()
+        self.check_name_ctnr_collision()
         if validate_glue:
             self.check_glue_status()
         if not ignore_intr:
@@ -66,14 +65,50 @@ class BaseAddressRecord(Ip, LabelDomainMixin, CydnsRecord):
         if kwargs.pop('validate_glue', True):
             if self.nameserver_set.exists():
                 raise ValidationError(
-                    "Cannot delete the record {0}. It is a glue "
-                    "record.".format(self.record_type()))
+                    'Cannot delete this address record. It is a glue record.')
         if kwargs.pop('check_cname', True):
             if CNAME.objects.filter(target=self.fqdn):
                 raise ValidationError(
-                    "A CNAME points to this {0} record. Change the CNAME "
-                    "before deleting this record.".format(self.record_type()))
+                    'A CNAME points to this address record. Change the CNAME '
+                    'before deleting this record.')
         super(BaseAddressRecord, self).delete(*args, **kwargs)
+
+    def check_name_ctnr_collision(self):
+        """
+        Allow ARs with the same name iff they have the same container.
+        Allow ARs to share a name with a static interface iff they have the
+            same container.
+        """
+
+        from cyder.cydhcp.interface.static_intr.models import StaticInterface
+        from cyder.core.ctnr.models import Ctnr
+        assert self.fqdn
+        try:
+            self.ctnr
+        except Ctnr.DoesNotExist:
+            # By this point, Django will already have encountered a
+            # Validation error about the ctnr field, so there's no need to
+            # raise another one.
+            return
+
+        ars = (AddressRecord.objects.filter(fqdn=self.fqdn)
+                                    .exclude(ctnr=self.ctnr))
+        sis = (StaticInterface.objects.filter(fqdn=self.fqdn)
+                                      .exclude(ctnr=self.ctnr))
+
+        if isinstance(self, AddressRecord):
+            ars = ars.exclude(pk=self.pk)
+        elif isinstance(self, StaticInterface):
+            sis = sis.exclude(pk=self.pk)
+
+        if ars.exists():
+            raise ValidationError("Cannot create this object because an "
+                                  "Address Record with the name %s exists "
+                                  "in a different container." % self.fqdn)
+        elif sis.exists():
+            raise ValidationError("Cannot create this object because a "
+                                  "Static Interface with the name %s exists "
+                                  "in a different container." % self.fqdn)
 
     def check_intr_collision(self):
         from cyder.cydhcp.interface.static_intr.models import StaticInterface
@@ -123,12 +158,6 @@ class BaseAddressRecord(Ip, LabelDomainMixin, CydnsRecord):
                 "Nameserver to edit this record."
             )
 
-    def record_type(self):
-        if self.ip_type == IP_TYPE_4:
-            return 'A'
-        else:
-            return 'AAAA'
-
 
 class AddressRecord(BaseAddressRecord):
     """
@@ -158,12 +187,24 @@ class AddressRecord(BaseAddressRecord):
         data['data'] = [
             ('Label', 'label', self.label),
             ('Domain', 'domain__name', self.domain),
-            ('Record Type', 'obj_type', self.rdtype),
             ('IP', 'ip_str', str(self.ip_str)),
         ]
         return data
 
+    def cyder_unique_error_message(self, model_class, unique_check):
+        if unique_check == ('label', 'domain', 'fqdn', 'ip_upper', 'ip_lower',
+                            'ip_type'):
+            return (
+                'Address record with this label, domain, and IP address '
+                'already exists.')
+        else:
+            return super(AddressRecord, self).unique_error_message(
+                model_class, unique_check)
+
+    @transaction_atomic
     def save(self, *args, **kwargs):
+        self.full_clean()
+
         update_range_usage = kwargs.pop('update_range_usage', True)
         old_range = None
         if self.id is not None:
@@ -172,13 +213,14 @@ class AddressRecord(BaseAddressRecord):
         super(AddressRecord, self).save(*args, **kwargs)
         rng = find_range(self.ip_str)
         if rng and update_range_usage:
-            rng.save()
+            rng.save(commit=False)
             if old_range:
-                old_range.save()
+                old_range.save(commit=False)
 
+    @transaction_atomic
     def delete(self, *args, **kwargs):
         update_range_usage = kwargs.pop('update_range_usage', True)
         rng = find_range(self.ip_str)
         super(AddressRecord, self).delete(*args, **kwargs)
         if rng and update_range_usage:
-            rng.save()
+            rng.save(commit=False)

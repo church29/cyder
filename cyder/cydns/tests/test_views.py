@@ -2,44 +2,62 @@ from django.test.client import Client
 
 from nose.tools import eq_
 
-import cyder.base.tests
-from cyder.base.tests.test_views_template import build, random_label
+from cyder.base.tests import TestCase
+from cyder.base.tests.test_views_base import GenericViewTests, format_response
 from cyder.core.ctnr.models import Ctnr
 from cyder.cydns.address_record.models import AddressRecord
 from cyder.cydns.cname.models import CNAME
 from cyder.cydns.domain.models import Domain
-from cyder.cydns.ip.utils import ip_to_domain_name
+from cyder.cydns.ip.utils import ip_to_reverse_name
 from cyder.cydns.mx.models import MX
 from cyder.cydns.nameserver.models import Nameserver
 from cyder.cydns.ptr.models import PTR
 from cyder.cydns.srv.models import SRV
-from cyder.cydns.soa.models import SOA
+from cyder.cydns.tests.utils import create_zone
 from cyder.cydns.txt.models import TXT
 from cyder.cydns.sshfp.models import SSHFP
 from cyder.cydns.view.models import View
+from cyder.cydhcp.network.models import Network
+from cyder.cydhcp.range.models import Range
 
-from cyder.cydns.tests.utils import create_fake_zone
+from cyder.cydns.tests.utils import create_zone
 
 
-def do_setUp(self, test_class, test_data, use_domain=True, use_rdomain=False):
-    ctnr = Ctnr.objects.get(name='test_ctnr')
+def create_network_range(network_str, start_str, end_str, range_type,
+                         ip_type, domain, ctnr):
+    n = Network.objects.create(ip_type=ip_type, network_str=network_str)
+
+    r = Range.objects.create(
+        network=n, range_type=range_type, start_str=start_str, end_str=end_str,
+        domain=domain, ip_type=ip_type)
+    ctnr.ranges.add(r)
+
+
+def do_preUp(self):
     self.client = Client()
     self.client.login(username='test_superuser', password='password')
-    self.test_class = test_class
-    self.public_view = View.objects.get_or_create(name='public')[0]
-    self.private_view = View.objects.get_or_create(name='private')[0]
+
+    self.public_view = View.objects.create(name='public')
+    self.private_view = View.objects.create(name='private')
+
+    self.ctnr = Ctnr.objects.get(name='test_ctnr')
+    self.domain = create_zone('com')
+    self.ctnr.domains.add(self.domain)
 
     # Create forward zone.
-    self.domain = create_fake_zone(random_label(), suffix='.oregonstate.edu')
-    ctnr.domains.add(self.domain)
-    self.soa = self.domain.soa
-    self.subdomain = Domain.objects.create(
-        name=random_label() + '.' + self.domain.name, soa=self.soa)
-    ctnr.domains.add(self.subdomain)
+    self.subdomain = Domain.objects.create(name='example.com')
+    self.ctnr.domains.add(self.subdomain)
 
-    self.reverse_domain = create_fake_zone('196.in-addr.arpa', suffix='')
-    ctnr.domains.add(self.reverse_domain)
-    self.soa2 = self.reverse_domain.soa
+    Domain.objects.create(name='arpa')
+    Domain.objects.create(name='in-addr.arpa')
+    self.reverse_domain = create_zone('196.in-addr.arpa')
+    self.ctnr.domains.add(self.reverse_domain)
+
+
+def do_postUp(self, test_data, use_ctnr=True,
+              use_domain=True, use_rdomain=False):
+    if use_ctnr:
+        test_data['ctnr'] = self.ctnr
 
     # Create test object.
     test_data = dict(test_data.items())
@@ -47,20 +65,25 @@ def do_setUp(self, test_class, test_data, use_domain=True, use_rdomain=False):
         test_data['domain'] = self.domain
     if use_rdomain:
         test_data['reverse_domain'] = self.reverse_domain
-    self.test_obj, create = test_class.objects.get_or_create(**test_data)
+    self.test_obj = self.model.objects.create(**test_data)
 
 
-class NoNSTests(object):
+def do_setUp(self, *args, **kwargs):
+    do_preUp(self)
+    do_postUp(self, *args, **kwargs)
 
+
+class NoNSTests(GenericViewTests):
     def get_domain_and_post_data(self):
-        # This is different for classes that have ips instead of fqdns
-        domain_name = "{0}.{1}.{2}.{3}.com".format(
-            random_label(), random_label(), random_label(), random_label()
-        )
-        root_domain = create_fake_zone(domain_name, suffix="")
+        # This is different for classes that have IPs instead of FQDNs
+        root_domain = create_zone('foo')
         post_data = self.post_data()
+        bar = Domain.objects.create(name='bar.foo')
+        self.ctnr.domains.add(bar)
         # Get the '_' in SRV records
-        post_data['fqdn'] = post_data['fqdn'][0] + "asdf.asdf." + domain_name
+        post_data['label'] = post_data['label'][0] + 'buzz'
+        post_data['domain'] = bar.pk
+        self.ctnr.domains.add(root_domain)
         return root_domain, post_data
 
     def test_no_ns_in_view(self):
@@ -71,14 +94,14 @@ class NoNSTests(object):
         # We now have a zone with nameservers that aren't in any views. No
         # record should be allowed to be in the view
 
-        start_obj_count = self.test_class.objects.all().count()
+        start_obj_count = self.model.objects.count()
         post_data['views'] = [self.public_view.pk]
 
         # Create the object then get the object
-        resp = self.client.post(self.test_class.get_create_url(),
+        resp = self.client.post(self.model.get_create_url(),
                                 post_data, follow=True)
         self.assertEqual(resp.status_code, 200)
-        new_obj_count = self.test_class.objects.all().count()
+        new_obj_count = self.model.objects.count()
 
         # Nothing should have been created
         self.assertEqual(start_obj_count, new_obj_count)
@@ -86,104 +109,115 @@ class NoNSTests(object):
         ns.views.add(self.public_view)
 
         # Okay, we should be able to add to the public view now
-        start_obj_count = self.test_class.objects.all().count()
-        resp = self.client.post(self.test_class.get_create_url(),
+        start_obj_count = self.model.objects.count()
+        resp = self.client.post(self.model.get_create_url(),
                                 post_data, follow=True)
-        new_obj_count = self.test_class.objects.all().count()
+        self.assertIn(
+            resp.status_code, (200, 302),
+            "Couldn't add to public view\n" + format_response(resp))
+        new_obj_count = self.model.objects.count()
         self.assertEqual(start_obj_count + 1, new_obj_count)
 
 
-class AddressRecordViewTests(cyder.base.tests.TestCase, NoNSTests):
+class AddressRecordViewTests(TestCase, NoNSTests):
     fixtures = ['test_users/test_users.json']
+    model = AddressRecord
     name = 'address_record'
 
     def setUp(self):
         test_data = {
-            'label': random_label(),
+            'label': 'foo',
             'ip_type': '4',
             'ip_str': '196.168.1.1',
         }
-        do_setUp(self, AddressRecord, test_data)
+        do_setUp(self, test_data)
 
     def post_data(self):
         return {
-            'fqdn': self.domain.name,
+            'label': 'bar',
+            'domain': self.domain.pk,
             'ip_type': '4',
             'ip_str': '196.168.1.2',
             'ttl': '400',
             'description': 'yo',
+            'ctnr': self.ctnr.pk,
         }
 
 
-class CNAMEViewTests(cyder.base.tests.TestCase, NoNSTests):
+class CNAMEViewTests(TestCase, NoNSTests):
     fixtures = ['test_users/test_users.json']
+    model = CNAME
     name = 'cname'
 
     def setUp(self):
         test_data = {
-            'label': random_label(),
-            'target': random_label()
+            'label': 'foo',
+            'target': 'bar',
         }
-        do_setUp(self, CNAME, test_data)
+        do_setUp(self, test_data)
 
     def post_data(self):
         return {
-            'fqdn': self.subdomain.name,
-            'label': random_label(),
-            'target': random_label()
+            'label': 'buzz',
+            'domain': self.domain.pk,
+            'target': 'burp',
+            'ctnr': self.ctnr.pk,
         }
 
 
-class NSViewTests(cyder.base.tests.TestCase):
+class NSViewTests(TestCase, GenericViewTests):
     fixtures = ['test_users/test_users.json']
+    model = Nameserver
     name = 'nameserver'
 
     def setUp(self):
-        self.domain = create_fake_zone("foobarbaz.com")
+        self.domain = create_zone('foo')
         test_data = {
-            'server': self.domain.name
+            'server': 'foo',
         }
-        do_setUp(self, Nameserver, test_data)
+        do_setUp(self, test_data)
 
     def post_data(self):
         return {
-            'fqdn': self.domain.name,
-            'server': self.domain.name
+            'domain': self.domain.pk,
+            'server': 'bar',
         }
 
     def test_no_ns_in_view(self):
-        root_domain = create_fake_zone("asdfdjhjd")
+        root_domain = create_zone('asdfdjhjd')
+        self.ctnr.domains.add(root_domain)
         ns = root_domain.nameserver_set.all()[0]
+        ns.views.add(self.public_view, self.private_view)
 
-        cn = CNAME(label='asdf', domain=root_domain, target='test.com')
-        cn.full_clean()
-        cn.save()
+        cn = CNAME.objects.create(
+            label='asdf', domain=root_domain, target='test.com',
+            ctnr=self.ctnr)
         cn.views.add(self.public_view)
 
-        self.assertTrue(ns.domain.soa == cn.domain.soa)
+        self.assertEqual(ns.domain.soa, cn.domain.soa)
 
-        # We now should have a nameserver and a cname in the public view. The
-        # nameserver should not be allowed to disable it's public view
+        # We now should have a nameserver and a CNAME in the public view. The
+        # nameserver should not be allowed to disable its public view
 
         # Try to remove the public view
-        self.assertTrue(self.public_view in ns.views.all())
-        self.assertTrue(self.private_view in ns.views.all())
+        self.assertIn(self.public_view, ns.views.all())
+        self.assertIn(self.private_view, ns.views.all())
         post_data = self.post_data()
-        post_data['fqdn'] = ns.domain.name
+        post_data['domain'] = ns.domain.pk
         post_data['views'] = [self.private_view.pk]
         resp = self.client.post(
             ns.get_update_url(), post_data, follow=True
         )
         self.assertEqual(resp.status_code, 200)
         # Make sure it's still there
-        ns = Nameserver.objects.get(pk=ns.pk)  # fetch
+        ns = ns.reload()
         # Make sure the view is still there
         # The clean method should prevent it from being deleted
-        self.assertTrue(self.public_view in ns.views.all())
+        self.assertIn(self.public_view, ns.views.all())
 
         # Try to remove the private view
         # This should be allowed
-        self.assertTrue(self.public_view in ns.views.all())
+        self.assertIn(self.public_view, ns.views.all())
         post_data = self.post_data()
         post_data['views'] = [self.public_view.pk]
         resp = self.client.post(
@@ -191,73 +225,89 @@ class NSViewTests(cyder.base.tests.TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         # Make sure it's still there
-        ns = Nameserver.objects.get(pk=ns.pk)  # fetch
+        ns = ns.reload()
         # Make sure the view is still there
         # The clean method should prevent it from being deleted
-        self.assertTrue(self.private_view not in ns.views.all())
+        self.assertNotIn(self.private_view, ns.views.all())
 
 
-class MXViewTests(cyder.base.tests.TestCase, NoNSTests):
+class MXViewTests(TestCase, NoNSTests):
     fixtures = ['test_users/test_users.json']
+    model = MX
     name = 'mx'
 
     def setUp(self):
         test_data = {
-            'label': random_label(),
-            'server': random_label(),
+            'label': 'foo',
+            'server': 'bar',
             'priority': 123,
             'ttl': 213
         }
-        do_setUp(self, MX, test_data)
+        do_setUp(self, test_data)
 
     def post_data(self):
         return {
-            'fqdn': self.domain.name,
-            'label': random_label(),
-            'server': random_label(),
+            'domain': self.domain.pk,
+            'label': 'buzz',
+            'server': 'burp',
             'priority': 123,
-            'ttl': 213
+            'ttl': 213,
+            'ctnr': self.ctnr.pk,
         }
 
 
-class PTRViewTests(cyder.base.tests.TestCase, NoNSTests):
+class PTRViewTests(TestCase, NoNSTests):
     fixtures = ['test_users/test_users.json']
+    model = PTR
     name = 'ptr'
 
     def get_domain_and_post_data(self):
         # This is different for classes that have ips instead of fqdns
-        domain_name = "9.ip6.arpa"
-        root_domain = create_fake_zone(domain_name, suffix="")
+        root_domain = Domain.objects.get(name='9.ip6.arpa')
         post_data = self.post_data()
         post_data['ip_str'] = '9000::df12'
         post_data['ip_type'] = '6'
+        create_network_range(network_str='9000::/32',
+                             start_str='9000::d000', end_str='9000::dfff',
+                             range_type='st', ip_type='6', domain=self.domain,
+                             ctnr=self.ctnr)
+
         return root_domain, post_data
 
     def setUp(self):
         test_data = {
-            'label': random_label(),
+            'fqdn': 'foo.bar',
             'ip_type': '4',
             'ip_str': '196.168.1.2',
         }
-        Domain.objects.get_or_create(name='arpa')
-        Domain.objects.get_or_create(name='in-addr.arpa')
-        Domain.objects.get_or_create(name='196.in-addr.arpa')
-        Domain.objects.get_or_create(name='168.196.in-addr.arpa')
-        Domain.objects.get_or_create(name='1.168.196.in-addr.arpa')
+        do_preUp(self)
+        Domain.objects.create(name='ip6.arpa')
+        root_domain = create_zone('9.ip6.arpa')
+        Domain.objects.create(name='168.196.in-addr.arpa')
+        Domain.objects.create(name='1.168.196.in-addr.arpa')
 
-        Domain.objects.create(name=ip_to_domain_name(test_data['ip_str']))
-        do_setUp(self, PTR, test_data, use_domain=True, use_rdomain=True)
+        create_network_range(network_str='196.168.0.0/16',
+                             start_str='196.168.1.0', end_str='196.168.1.253',
+                             range_type='st', ip_type='4', domain=self.domain,
+                             ctnr=self.ctnr)
+
+        Domain.objects.create(name=ip_to_reverse_name(test_data['ip_str']))
+        do_postUp(self, test_data, use_domain=False, use_rdomain=True)
 
     def post_data(self):
+        new_domain = Domain.objects.create(name='boop')
+        self.ctnr.domains.add(new_domain)
         return {
-            'fqdn': random_label() + '.' + self.domain.name,
+            'label': 'buzz',
+            'domain': new_domain.pk,
             'ip_type': '4',
             'ip_str': '196.168.1.3',
             'description': 'yo',
+            'ctnr': self.ctnr.pk,
         }
 
     def test_update_reverse_domain(self):
-        eq_(self.test_obj.reverse_domain.name, '2.1.168.196.in-addr.arpa')
+        eq_(self.test_obj.reverse_domain.name, '196.in-addr.arpa')
         post_data = self.post_data()
 
         self.client.post(self.test_obj.get_update_url(), post_data,
@@ -266,72 +316,76 @@ class PTRViewTests(cyder.base.tests.TestCase, NoNSTests):
         eq_(updated_obj.ip_str, '196.168.1.3')
 
 
-class SRVViewTests(cyder.base.tests.TestCase, NoNSTests):
+class SRVViewTests(TestCase, NoNSTests):
     fixtures = ['test_users/test_users.json']
+    model = SRV
     name = 'srv'
 
     def setUp(self):
         test_data = {
-            'label': '_' + random_label(),
-            'target': 'foo.com',
+            'label': '_foo',
+            'target': 'bar',
             'priority': 2,
             'weight': 2222,
             'port': 222
         }
-        do_setUp(self, SRV, test_data)
+        do_setUp(self, test_data)
 
     def post_data(self):
+        new_domain = Domain.objects.create(name='boop')
+        self.ctnr.domains.add(new_domain)
         return {
-            'fqdn': '_' + random_label() + '.' + self.domain.name,
-            'target': 'foo.bar',
+            'label': '_buzz',
+            'domain': new_domain.pk,
+            'target': 'burp',
             'priority': 2,
             'weight': 2222,
-            'port': 222
+            'port': 222,
+            'ctnr': self.ctnr.pk,
         }
 
 
-class TXTViewTests(cyder.base.tests.TestCase, NoNSTests):
+class TXTViewTests(TestCase, NoNSTests):
     fixtures = ['test_users/test_users.json']
+    model = TXT
     name = 'txt'
 
     def setUp(self):
         test_data = {
-            'label': random_label(),
-            'txt_data': random_label()
+            'label': 'foo',
+            'txt_data': 'foo foo foo',
         }
-        do_setUp(self, TXT, test_data)
+        do_setUp(self, test_data)
 
     def post_data(self):
         return {
-            'fqdn': self.domain.name,
-            'label': random_label(),
-            'txt_data': random_label()
+            'label': 'bar',
+            'domain': self.domain.pk,
+            'txt_data': 'bar bar bar',
+            'ctnr': self.ctnr.pk,
         }
 
 
-class SSHFPViewTests(cyder.base.tests.TestCase, NoNSTests):
+class SSHFPViewTests(TestCase, NoNSTests):
     fixtures = ['test_users/test_users.json']
+    model = SSHFP
     name = 'sshfp'
 
     def setUp(self):
         test_data = {
-            'label': random_label(),
+            'label': 'foo',
             'algorithm_number': 1,
             'fingerprint_type': 1,
             'key': '9d97e98f8af710c7e7fe703abc8f639e0ee50222'
         }
-        do_setUp(self, SSHFP, test_data)
+        do_setUp(self, test_data)
 
     def post_data(self):
         return {
-            'fqdn': self.domain.name,
-            'label': random_label(),
+            'label': 'bar',
+            'domain': self.domain.pk,
             'algorithm_number': 1,
             'fingerprint_type': 1,
-            'key': '9d97e98f8af710c7e7fe703abc8f639e0ee50111'
+            'key': '9d97e98f8af710c7e7fe703abc8f639e0ee50111',
+            'ctnr': self.ctnr.pk,
         }
-
-
-# Build the tests.
-build([AddressRecordViewTests, CNAMEViewTests, MXViewTests, NSViewTests,
-       PTRViewTests, SRVViewTests, TXTViewTests, SSHFPViewTests])

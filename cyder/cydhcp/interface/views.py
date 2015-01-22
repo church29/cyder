@@ -9,18 +9,20 @@ from cyder.cydhcp.range.range_usage import range_usage
 import json
 
 
-def interface_delete(request):
+def is_last_interface(request):
     obj_type = request.POST['obj_type']
     pk = request.POST['pk']
     Klass = get_model('cyder', obj_type.replace('_', ''))
     obj = get_object_or_404(Klass, pk=pk)
+    last_interface = False
     if (len(DynamicInterface.objects.filter(system=obj.system))
             + len(StaticInterface.objects.filter(system=obj.system)) == 1):
-            return HttpResponse(json.dumps({'last': True}))
-    else:
-        return HttpResponse(json.dumps({'last': False}))
+        last_interface = True
+
+    return HttpResponse(json.dumps({'last_interface': last_interface}))
 
 
+#redundant use other get_ranges
 def get_ranges(request):
     if not request.POST:
         return redirect(request.META.get('HTTP_REFERER', ''))
@@ -44,6 +46,7 @@ def get_ranges(request):
         return HttpResponse(json.dumps({'error': True}))
 
 
+#refactor
 def batch_update(request):
     if not request.POST:
         return redirect(request.META.get('HTTP_REFERER', ''))

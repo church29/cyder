@@ -4,6 +4,8 @@ from gettext import gettext as _
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import models
 
+from cyder.base.utils import transaction_atomic
+from cyder.core.ctnr.models import Ctnr
 from cyder.cydhcp.interface.static_intr.models import StaticInterface
 from cyder.cydns.domain.models import Domain
 from cyder.cydns.address_record.models import AddressRecord
@@ -57,8 +59,8 @@ class Nameserver(CydnsRecord):
         db_table = "nameserver"
         unique_together = ("domain", "server")
 
-    def __str__(self):
-        return self.bind_render_record()
+    def __unicode__(self):
+        return u'{} NS {}'.format(self.domain.name, self.server)
 
     @staticmethod
     def filter_by_ctnr(ctnr, objects=None):
@@ -121,33 +123,49 @@ class Nameserver(CydnsRecord):
                              "either type AddressRecord or type "
                              "StaticInterface.".format(glue))
 
+    @transaction_atomic
     def del_glue(self):
         if self.addr_glue:
-            self.addr_glue.delete()
+            self.addr_glue.delete(commit=False)
         elif self.intr_glue:
-            self.intr_glue.delete()
+            self.intr_glue.delete(commit=False)
         else:
             raise AttributeError("'Nameserver' object has no attribute 'glue'")
 
     glue = property(get_glue, set_glue, del_glue, "The Glue property.")
 
+    def __init__(self, *args, **kwargs):
+        super(Nameserver, self).__init__(*args, **kwargs)
+        self.ctnr = Ctnr.objects.get(name="global")
+
+    @transaction_atomic
     def delete(self, *args, **kwargs):
         self.check_no_ns_soa_condition(self.domain)
         super(Nameserver, self).delete(*args, **kwargs)
 
-    def clean(self):
-        # We are a CydnsRecord, our clean method is called during save()!
+    @transaction_atomic
+    def save(self, *args, **kwargs):
+        self.full_clean()
+
+        super(Nameserver, self).save(*args, **kwargs)
+
+    def clean(self, *args, **kwargs):
+        try:
+            self.domain
+        except Domain.DoesNotExist:
+            return  # clean_fields already seen `domain`'s own ValidationError.
+
         self.check_for_cname()
 
         if not self.needs_glue():
             self.glue = None
         else:
-            # Try to find any glue record. It will be the first elligible
+            # Try to find any glue record. It will be the first eligible
             # The resolution is:
             #  * Address records are searched.
             #  * Interface records are searched.
             # AddressRecords take higher priority over interface records.
-            glue_label = self.server.split('.')[0]  # foo.com -> foo
+            glue_label = self.server[:self.server.find('.')]  # foo.com -> foo
             if (self.glue and self.glue.label == glue_label and
                     self.glue.domain == self.domain):
                 # Our glue record is valid. Don't go looking for a new one.

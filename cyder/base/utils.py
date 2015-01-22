@@ -5,9 +5,13 @@ import shlex
 import shutil
 import subprocess
 import syslog
+from copy import copy
 from sys import stderr
 
+import MySQLdb
+from django.conf import settings
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db import transaction
 from django.db.models import Q
 from django.db.models.loading import get_model
 
@@ -189,3 +193,67 @@ def django_pretty_type(obj_type):
         return 'user'
     else:
         return None
+
+
+def transaction_atomic(func):
+    """Make the outermost function run in a transaction
+
+    This decorator should be used on any function that saves or deletes model
+    instances. This includes `save` and `delete` methods.  An exception will
+    roll back any changes performed during the outermost method. If a
+    `transaction_atomic`-wrapped function calls another
+    `transaction_atomic`-wrapped function (including itself), it should pass
+    `commit=False`.
+
+    Exceptions pass through this decorator intact.
+    """
+
+    def outer(*args, **kwargs):
+        if kwargs.pop('commit', True):
+            with transaction.commit_on_success():
+                return func(*args, **kwargs)
+        else:
+            return func(*args, **kwargs)
+    outer.__name__ = func.__name__
+    outer.__module__ = func.__module__
+    outer.__doc__ = func.__doc__
+    return outer
+
+
+class savepoint_atomic(object):
+    def __enter__(self):
+        self.sid = transaction.savepoint()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type:
+            transaction.savepoint_rollback(self.sid)
+        else:
+            transaction.savepoint_commit(self.sid)
+
+
+def get_cursor(alias, use=True):
+    """Return a cursor for database `alias` and the name of the database.
+
+    If `use` is False, don't pass the db argument.
+    """
+    if alias in settings.DATABASES:
+        s = settings.DATABASES[alias]
+        kwargs = {
+            'host': s['HOST'],
+            'port': int(s['PORT'] or '0'),
+            'db': s['NAME'],
+            'user': s['USER'],
+            'passwd': s['PASSWORD'],
+        }
+        kwargs.update(s['OPTIONS'])
+        if use:
+            kwargs['db'] = s['NAME']
+    elif alias in settings.OTHER_DATABASES:
+        kwargs = copy(settings.OTHER_DATABASES[alias])
+    else:
+        raise Exception('No such database in DATABASES or OTHER_DATABASES')
+    conf = copy(kwargs)
+    if not use:
+        del kwargs['db']
+    return MySQLdb.connect(**kwargs).cursor(), conf

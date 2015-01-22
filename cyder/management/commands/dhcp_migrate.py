@@ -1,14 +1,18 @@
-from django.core.exceptions import ObjectDoesNotExist
-from django.core.management.base import BaseCommand
+from datetime import datetime
+from optparse import make_option
+from sys import stderr
+
+import ipaddr
+import MySQLdb
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 
 from cyder.base.eav.models import Attribute
+from cyder.base.utils import get_cursor
 from cyder.core.ctnr.models import Ctnr, CtnrUser
 from cyder.core.system.models import System, SystemAV
-from cyder.cydns.domain.models import Domain
-from cyder.cydns.models import View
 from cyder.cydhcp.interface.dynamic_intr.models import DynamicInterface
 from cyder.cydhcp.constants import (ALLOW_ANY, ALLOW_KNOWN,
                                     ALLOW_LEGACY, STATIC, DYNAMIC)
@@ -18,15 +22,9 @@ from cyder.cydhcp.site.models import Site
 from cyder.cydhcp.vlan.models import Vlan
 from cyder.cydhcp.vrf.models import Vrf
 from cyder.cydhcp.workgroup.models import Workgroup, WorkgroupAV
-
-from sys import stderr
-from random import choice
-from datetime import datetime
-import ipaddr
-import MySQLdb
-from optparse import make_option
-
-from lib.utilities import long2ip, fix_attr_name, range_usage_get_create
+from cyder.cydns.domain.models import Domain
+from cyder.cydns.models import View
+from .lib.utilities import fix_attr_name, long2ip, range_usage_get_create
 
 
 cached = {}
@@ -51,6 +49,9 @@ voip_networks = {
 }
 
 
+cursor, _ = get_cursor('maintain_sb')
+
+
 class NotInMaintain(Exception):
     """"""
 
@@ -61,14 +62,6 @@ def calc_prefixlen(netmask):
         bits += netmask & 1
         netmask >>= 1
     return bits
-
-connection = MySQLdb.connect(host=settings.MIGRATION_HOST,
-                             user=settings.MIGRATION_USER,
-                             passwd=settings.MIGRATION_PASSWD,
-                             db=settings.MIGRATION_DB,
-                             charset='utf8')
-
-cursor = connection.cursor()
 
 
 def clean_zone_name(name):
@@ -161,7 +154,6 @@ def create_range(range_id, start, end, range_type, subnet_id,
 
         valid = all((valid_start, valid_order, valid_end))
 
-        # If the range is disabled, we don't need to print warnings.
         if not valid:
             print 'Range {0}, {1} in network {2} is invalid:'.format(
                 range_id, range_str, n)
@@ -343,13 +335,20 @@ def migrate_dynamic_hosts():
     for values in cursor.fetchall():
         items = dict(zip(keys, values))
         enabled = items['enabled']
-        mac = items['ha']
 
-        if len(mac) != 12 or mac == '0' * 12:
-            mac = ""
-
-        if mac == "":
-            enabled = False
+        if len(items['ha']) == 0:
+            mac = None
+        elif len(items['ha']) == 12:
+            if items['ha'] == '0' * 12:
+                mac = None
+                enabled = False
+            else:
+                mac = items['ha']
+        else:
+            stderr.write(
+                'Host with id {} has invalid hardware address "{}"'.format(
+                    items['id'], items['ha']))
+            continue
 
         # TODO: Verify that there is no valid range/zone/workgroup with id 0
         r, c, w = None, None, default
@@ -357,9 +356,10 @@ def migrate_dynamic_hosts():
             try:
                 r = maintain_find_range(items['dynamic_range'])
             except ObjectDoesNotExist:
-                print ("Could not create dynamic interface %s: Range %s "
-                       "is in Maintain, but was not created in Cyder." %
-                       (mac, items['dynamic_range']))
+                stderr.write(
+                    'Could not create dynamic interface %s: Range %s '
+                    'is in Maintain, but was not created in Cyder.' %
+                    (items['ha'], items['dynamic_range']))
 
         if items['zone']:
             c = maintain_find_zone(items['zone'])
@@ -368,7 +368,7 @@ def migrate_dynamic_hosts():
             w = maintain_find_workgroup(items['workgroup'])
 
         if not all([r, c]):
-            stderr.write("Trouble migrating host with mac {0}\n"
+            stderr.write('Trouble migrating host with mac {0}\n'
                          .format(items['ha']))
             continue
 
@@ -389,15 +389,32 @@ def migrate_dynamic_hosts():
         if last_seen:
             last_seen = datetime.fromtimestamp(last_seen)
 
-        intr, _ = range_usage_get_create(
-            DynamicInterface, range=r, workgroup=w, ctnr=c, mac=mac,
-            system=s, dhcp_enabled=enabled, last_seen=last_seen)
+        intr = DynamicInterface(
+            range=r, workgroup=w, ctnr=c, mac=mac, system=s,
+            dhcp_enabled=enabled, last_seen=last_seen)
+        try:
+            intr.save(update_range_usage=False, commit=False)
+        except ValidationError as e:
+            try:
+                intr.dhcp_enabled = False
+                intr.save(update_range_usage=False)
+                stderr.write(
+                    'WARNING: Dynamic interface with MAC address {} has been '
+                    'disabled\n'.format(intr.mac))
+                stderr.write('    {}\n'.format(e))
+            except ValidationError as e:
+                stderr.write(
+                    'WARNING: Could not create dynamic interface with MAC '
+                    'address {}\n'.format(intr.mac))
+                stderr.write('    {}\n'.format(e))
+                intr = None
 
-        count += 1
-        if not count % 1000:
-            print "%s valid hosts found so far." % count
+        if intr:
+            count += 1
+            if not count % 1000:
+                print "%s valid hosts found so far." % count
 
-    print "%s valid hosts found. Committing transaction." % count
+    print "%s valid hosts found." % count
 
 
 def migrate_user():
@@ -486,8 +503,12 @@ def migrate_zone_reverse():
         for octet in octets:
             doctets = [octet] + doctets
             dname = ".".join(doctets) + ".in-addr.arpa"
-            domain, _ = Domain.objects.get_or_create(name=dname,
-                                                     is_reverse=True)
+            try:
+                domain, _ = Domain.objects.get_or_create(name=dname,
+                                                         is_reverse=True)
+            except ValidationError, e:
+                print "Could not migrate domain %s: %s" % (dname, e)
+                break
 
         ctnr.domains.add(domain)
         ctnr.save()
@@ -513,7 +534,12 @@ def maintain_find_range_domain(range_id):
     cursor.execute(sql)
     results = [r[0] for r in cursor.fetchall() if r[0] is not None]
     if results:
-        return maintain_find_domain(choice(results))
+        try:
+            return maintain_find_domain(results[0])
+        except Domain.DoesNotExist:
+            stderr.write("WARNING: Could not migrate range %s because "
+                         "domain does not exist.\n" % range_id)
+            return None
     else:
         return None
 
@@ -527,7 +553,12 @@ def maintain_find_range(range_id):
 def maintain_find_domain(domain_id):
     (name,) = maintain_get_cached('domain', ['name'], domain_id)
     if name:
-        return Domain.objects.get(name=name)
+        try:
+            return Domain.objects.get(name=name)
+        except Domain.DoesNotExist, e:
+            stderr.write("ERROR: Domain with name %s was "
+                         "never created.\n" % name)
+            raise e
 
 
 def maintain_find_workgroup(workgroup_id):
@@ -595,114 +626,3 @@ def delete_all():
 def do_everything(skip=False):
     delete_all()
     migrate_all(skip)
-
-
-class Command(BaseCommand):
-
-    option_list = BaseCommand.option_list + (
-        make_option('-D', '--delete',
-                    action='store_true',
-                    dest='delete',
-                    default=False,
-                    help='Delete things'),
-        make_option('-a', '--all',
-                    action='store_true',
-                    dest='all',
-                    default=False,
-                    help='Migrate everything'),
-        make_option('-S', '--skip',
-                    action='store_true',
-                    dest='skip',
-                    default=False,
-                    help='Ignore dynamic hosts when using -a option'),
-        make_option('-n', '--vlan',
-                    action='store_true',
-                    dest='vlan',
-                    default=False,
-                    help='Migrate vlans'),
-        make_option('-Z', '--zone',
-                    action='store_true',
-                    dest='zone',
-                    default=False,
-                    help='Migrate zones to ctnrs'),
-        make_option('-w', '--workgroup',
-                    action='store_true',
-                    dest='workgroup',
-                    default=False,
-                    help='Migrate workgroups'),
-        make_option('-s', '--subnet',
-                    action='store_true',
-                    dest='subnet',
-                    default=False,
-                    help='Migrate subnets'),
-        make_option('-r', '--range',
-                    action='store_true',
-                    dest='range',
-                    default=False,
-                    help='Migrate ranges'),
-        make_option('-d', '--dynamic',
-                    action='store_true',
-                    dest='dynamic',
-                    default=False,
-                    help='Migrate dynamic interfaces'),
-        make_option('-R', '--zone-range',
-                    action='store_true',
-                    dest='zone-range',
-                    default=False,
-                    help='Migrate zone/range relationship'),
-        make_option('-W', '--zone-workgroup',
-                    action='store_true',
-                    dest='zone-workgroup',
-                    default=False,
-                    help='Migrate zone/workgroup relationship'),
-        make_option('-z', '--zone-domain',
-                    action='store_true',
-                    dest='zone-domain',
-                    default=False,
-                    help='Migrate zone/domain relationship'),
-        make_option('-e', '--zone-reverse',
-                    action='store_true',
-                    dest='zone-reverse',
-                    default=False,
-                    help='Migrate zone/reverse domain relationship'),
-        make_option('-u', '--user',
-                    action='store_true',
-                    dest='user',
-                    default=False,
-                    help='Migrate users'),
-        make_option('-U', '--zone-user',
-                    action='store_true',
-                    dest='zone-user',
-                    default=False,
-                    help='Migrate zone/user relationship'))
-
-    def handle(self, **options):
-        if options['delete']:
-            delete_all()
-        if options['all']:
-            migrate_all(skip=options['skip'])
-        else:
-            if options['vlan']:
-                migrate_vlans()
-            if options['zone']:
-                migrate_zones()
-            if options['workgroup']:
-                migrate_workgroups()
-            if options['subnet']:
-                migrate_subnets()
-            if options['range']:
-                migrate_ranges()
-            if options['dynamic']:
-                migrate_dynamic_hosts()
-            if options['zone-range']:
-                migrate_zone_range()
-            if options['zone-workgroup']:
-                migrate_zone_workgroup()
-            if options['zone-domain']:
-                migrate_zone_domain()
-            if options['zone-reverse']:
-                migrate_zone_reverse()
-            if options['user']:
-                migrate_user()
-            if options['zone-user']:
-                migrate_zone_user()

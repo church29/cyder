@@ -6,26 +6,23 @@ from django.core.exceptions import ValidationError
 import datetime
 import re
 
-from cyder.core.fields import MacAddrField
-
-from cyder.core.system.models import System
-
 from cyder.base.constants import IP_TYPE_6
 from cyder.base.eav.constants import (ATTRIBUTE_OPTION, ATTRIBUTE_STATEMENT,
                                       ATTRIBUTE_INVENTORY)
 from cyder.base.eav.fields import EAVAttributeField
 from cyder.base.eav.models import Attribute, EAVBase
+from cyder.base.fields import MacAddrField
 from cyder.base.models import ExpirableMixin
-
+from cyder.base.utils import transaction_atomic
+from cyder.core.system.models import System
 from cyder.cydhcp.constants import STATIC
 from cyder.cydhcp.range.utils import find_range
 from cyder.cydhcp.utils import format_mac, join_dhcp_args
 from cyder.cydhcp.workgroup.models import Workgroup
-
-from cyder.cydns.ptr.models import BasePTR, PTR
 from cyder.cydns.address_record.models import AddressRecord, BaseAddressRecord
-from cyder.cydns.ip.utils import ip_to_dns_form, check_for_reverse_domain
 from cyder.cydns.domain.models import Domain
+from cyder.cydns.ip.utils import ip_to_reverse_name
+from cyder.cydns.ptr.models import BasePTR, PTR
 
 
 class StaticInterface(BaseAddressRecord, BasePTR, ExpirableMixin):
@@ -35,7 +32,6 @@ class StaticInterface(BaseAddressRecord, BasePTR, ExpirableMixin):
 
         >>> s = StaticInterface(label=label, domain=domain, ip_str=ip_str,
         ... ip_type=ip_type, dhcp_enabled=True, dns_enabled=True)
-        >>> s.full_clean()
         >>> s.save()
 
     This class is the main interface to DNS and DHCP. A static
@@ -50,16 +46,12 @@ class StaticInterface(BaseAddressRecord, BasePTR, ExpirableMixin):
 
     In terms of DNS, a static interface represents a PTR and A record and must
     adhere to the requirements of those classes. The interface inherits from
-    BaseAddressRecord and will call its clean method with
-    'update_reverse_domain' set to True. This will ensure that its A record is
-    valid *and* that its PTR record is valid.
+    BaseAddressRecord.
     """
 
     pretty_type = 'static interface'
 
     id = models.AutoField(primary_key=True)
-    ctnr = models.ForeignKey('cyder.Ctnr', null=False,
-                             verbose_name="Container")
     mac = MacAddrField(dhcp_enabled='dhcp_enabled', verbose_name='MAC address',
                        help_text='(required if DHCP is enabled)')
     reverse_domain = models.ForeignKey(Domain, null=True, blank=True,
@@ -81,19 +73,14 @@ class StaticInterface(BaseAddressRecord, BasePTR, ExpirableMixin):
     class Meta:
         app_label = 'cyder'
         db_table = 'static_interface'
-        unique_together = ('ip_upper', 'ip_lower', 'label', 'domain', 'mac')
+        unique_together = (('ip_upper', 'ip_lower'), ('label', 'domain'))
 
     @staticmethod
     def filter_by_ctnr(ctnr, objects=None):
         objects = objects or StaticInterface.objects
         return objects.filter(ctnr=ctnr)
 
-    def __repr__(self):
-        return '<StaticInterface: {0}>'.format(str(self))
-
-    def __str__(self):
-        #return 'IP:{0} Full Name:{1} MAC:{2}'.format(self.ip_str,
-        #        self.fqdn, self.mac)
+    def __unicode__(self):
         return self.fqdn
 
     @property
@@ -136,39 +123,45 @@ class StaticInterface(BaseAddressRecord, BasePTR, ExpirableMixin):
             related_systems.update([interface.system])
         return related_systems
 
+    @transaction_atomic
     def save(self, *args, **kwargs):
+        self.full_clean()
+
         update_range_usage = kwargs.pop('update_range_usage', True)
-        self.urd = kwargs.pop('update_reverse_domain', True)
-        self.clean_reverse()  # BasePTR
         old_range = None
         if self.id is not None:
             old_range = StaticInterface.objects.get(id=self.id).range
 
         super(StaticInterface, self).save(*args, **kwargs)
-        self.rebuild_reverse()
-        if self.range and update_range_usage:
-            self.range.save()
+        self.schedule_zone_rebuild()
+        if update_range_usage:
+            new_range = self.range
+            if new_range:
+                new_range.save(commit=False)
             if old_range:
-                old_range.save()
+                old_range.save(commit=False)
 
+    @transaction_atomic
     def delete(self, *args, **kwargs):
         rng = self.range
         update_range_usage = kwargs.pop('update_range_usage', True)
         delete_system = kwargs.pop('delete_system', True)
-        if self.reverse_domain and self.reverse_domain.soa:
-            self.reverse_domain.soa.schedule_rebuild()
-            # The reverse_domain field is in the Ip class.
 
         if delete_system:
-            if(not self.system.staticinterface_set.all().exclude(
+            if(not self.system.staticinterface_set.exclude(
                     id=self.id).exists() and
-                    not self.system.dynamicinterface_set.all().exists()):
-                self.system.delete()
+                    not self.system.dynamicinterface_set.exists()):
+                self.system.delete(commit=False)
 
         super(StaticInterface, self).delete(*args, **kwargs)
         if rng and update_range_usage:
-            rng.save()
-        # ^ goes to BaseAddressRecord
+            rng.save(commit=False)
+
+    def schedule_zone_rebuild(self):
+        if self.domain.soa is not None:
+            self.domain.soa.schedule_rebuild()
+        if self.reverse_domain.soa is not None:
+            self.reverse_domain.soa.schedule_rebuild()
 
     def check_A_PTR_collision(self):
         if PTR.objects.filter(ip_str=self.ip_str).exists():
@@ -213,7 +206,10 @@ class StaticInterface(BaseAddressRecord, BasePTR, ExpirableMixin):
         return 'subclass "{0}" 1:{1};\n'.format(classname, self.mac)
 
     def clean(self, *args, **kwargs):
-        check_for_reverse_domain(self.ip_str, self.ip_type)
+        validate_glue = kwargs.pop('validate_glue', True)
+
+        super(StaticInterface, self).clean(validate_glue=False,
+                                           ignore_intr=True)
 
         from cyder.cydns.ptr.models import PTR
         if PTR.objects.filter(ip_str=self.ip_str, fqdn=self.fqdn).exists():
@@ -224,11 +220,8 @@ class StaticInterface(BaseAddressRecord, BasePTR, ExpirableMixin):
             raise ValidationError("An A record already uses '%s' and '%s'" %
                                   (self.fqdn, self.ip_str))
 
-        if kwargs.pop('validate_glue', True):
+        if validate_glue:
             self.check_glue_status()
-
-        super(StaticInterface, self).clean(validate_glue=False,
-                                           ignore_intr=True)
 
         if self.dhcp_enabled:
             if not (self.range and self.range.range_type == STATIC):
@@ -266,13 +259,10 @@ class StaticInterface(BaseAddressRecord, BasePTR, ExpirableMixin):
         self.rdtype_clob = kwargs.pop('rdtype', 'INTR')
         if kwargs.pop('reverse', False):
             self.template = self.ptr_template
-            self.dns_ip = ip_to_dns_form(self.ip_str)
+            self.dns_ip = ip_to_reverse_name(self.ip_str) + '.'
         else:
             self.template = self.a_template
         return super(StaticInterface, self).bind_render_record(pk=pk, **kwargs)
-
-    def obj_type(self):
-        return 'A/PTR'
 
 
 class StaticInterfaceAV(EAVBase):

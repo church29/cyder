@@ -1,16 +1,3 @@
-import MySQLdb
-from django.conf import settings
-
-
-def get_cursor(name):
-    connection = MySQLdb.connect(host=settings.MIGRATION_HOST,
-                                 user=settings.MIGRATION_USER,
-                                 passwd=settings.MIGRATION_PASSWD,
-                                 db=settings.MIGRATION_DB)
-    cursor = connection.cursor()
-    return cursor
-
-
 def long2ip(ip):
     return ".".join(map(lambda x: str((ip >> x) & 255), range(24, -1, -8)))
 
@@ -49,6 +36,7 @@ def range_usage_get_create(Klass, **kwargs):
         obj = Klass.objects.get(**kwargs)
     except Klass.DoesNotExist:
         obj = Klass(**kwargs)
+        obj.full_clean()
         created = True
 
     obj.save(update_range_usage=False)
@@ -90,6 +78,9 @@ def get_label_domain_workaround(fqdn):
         domain, _ = Domain.objects.get_or_create(name=domain_name)
         for obj in objs:
             obj.label = ""
+            ctnr_set = obj.domain.ctnr_set
+            for ctnr in ctnr_set.all():
+                ctnr.domains.add(domain)
             obj.domain = domain
             obj.save()
 

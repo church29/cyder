@@ -11,21 +11,16 @@ from cyder.cydns.validation import validate_ttl
 from cyder.cydns.view.validation import check_no_ns_soa_condition
 
 
-DOMAIN_FQDN_CONFLICT = ("Please specify either fqdn or "
-                        "label and domain, not both.")
-
-
-class LabelDomainMixin(models.Model):
+class LabelDomainUtilsMixin(models.Model):
     """
     This class provides common functionality that many DNS record
-    classes share.  This includes a foreign key to the ``domain`` table
-    and a ``label`` CharField.
+    classes share.
 
     If you plan on using the ``unique_together`` constraint on a Model
-    that inherits from ``LabelDomainMixin``, you must include ``domain`` and
-    ``label`` explicitly if you need them to.
+    that inherits from ``LabelDomainUtilsMixin`` or ``LabelDomainMixin``, you
+    must include ``domain`` and ``label`` explicitly if you need them to.
 
-    All common records have a ``fqdn`` field. This field is updated
+    All common records have an ``fqdn`` field. This field is updated
     every time the object is saved::
 
         fqdn = name + domain.name
@@ -45,7 +40,49 @@ class LabelDomainMixin(models.Model):
     def pretty_name(self):
         return self.fqdn
 
-    domain = models.ForeignKey(Domain, null=False)
+    class Meta:
+        abstract = True
+
+    def __init__(self, *args, **kwargs):
+        super(LabelDomainUtilsMixin, self).__init__(*args, **kwargs)
+        if self.fqdn:
+            self.label_domain_from_fqdn()
+
+    def label_domain_from_fqdn(self):
+        try:
+            self.domain = Domain.objects.get(name=self.fqdn)
+            self.label = ''
+        except Domain.DoesNotExist:
+            parts = self.fqdn.split('.', 1)
+            if len(parts) == 2:
+                self.label = parts[0]
+                self.domain = Domain.objects.get(name=parts[1])
+            else:
+                self.label = ''
+                self.domain = Domain.objects.get(name=parts[0])
+
+    def clean(self, *args, **kwargs):
+        try:
+            self.domain
+        except Domain.DoesNotExist:
+            # clean_fields has already seen `domain`'s own ValidationError.
+            raise ValidationError('')
+        self.set_fqdn()
+        super(LabelDomainUtilsMixin, self).clean(*args, **kwargs)
+
+    def set_fqdn(self):
+        if self.label:
+            self.fqdn = self.label + '.' + self.domain.name
+        else:
+            self.fqdn = self.domain.name
+
+
+class LabelDomainMixin(LabelDomainUtilsMixin):
+    class Meta:
+        abstract = True
+
+    domain = models.ForeignKey(
+        Domain, null=False, limit_choices_to={'is_reverse': False})
     # "The length of any one label is limited to between 1 and 63 octets."
     # -- RFC218
     label = models.CharField(
@@ -55,15 +92,6 @@ class LabelDomainMixin(models.Model):
     fqdn = models.CharField(
         max_length=255, blank=True, validators=[validate_fqdn], db_index=True
     )
-
-    class Meta:
-        abstract = True
-
-    @classmethod
-    def filter_by_ctnr(cls, ctnr, objects=None):
-        objects = objects or cls.objects
-        objects = objects.filter(domain__in=ctnr.domains.all())
-        return objects
 
 
 class ViewMixin(models.Model):
@@ -95,20 +123,28 @@ class CydnsRecord(BaseModel, ViewMixin, DisplayMixin, ObjectUrlMixin):
                                       validators=[validate_ttl],
                                       verbose_name="Time to live")
     description = models.CharField(max_length=1000, blank=True)
+    ctnr = models.ForeignKey("cyder.Ctnr", null=False,
+                             verbose_name="Container")
 
     class Meta:
         abstract = True
 
-    def __str__(self):
-        self.set_fqdn()
+    def __unicode__(self):
+        self.label_domain_from_fqdn()
         return self.bind_render_record()
-
-    def __repr__(self):
-        return "<{0} '{1}'>".format(self.rdtype, str(self))
 
     @classmethod
     def filter_by_ctnr(cls, ctnr, objects=None):
-        return objects or cls.objects.all()
+        objects = objects or cls.objects
+        if ctnr.name == "global":
+            return objects
+
+        objects = objects.filter(ctnr=ctnr)
+        return objects
+
+    def check_in_ctnr(self, ctnr):
+        if hasattr(self, "domain"):
+            return self.domain in ctnr.domains.all()
 
     @classmethod
     def get_api_fields(cls):
@@ -122,22 +158,18 @@ class CydnsRecord(BaseModel, ViewMixin, DisplayMixin, ObjectUrlMixin):
         """
         return ['fqdn', 'ttl', 'description', 'views']
 
-    def clean(self):
-        # The Nameserver and subclasses of BaseAddressRecord do not call this
-        # function
-        self.set_fqdn()
-        self.check_TLD_condition()
-        if hasattr(self, 'domain'):
-            check_no_ns_soa_condition(self.domain)
-        else:
-            raise ValidationError("DNS records require a domain")
+    def clean(self, *args, **kwargs):
+        super(CydnsRecord, self).clean(*args, **kwargs)
 
+        self.check_TLD_condition()
+        check_no_ns_soa_condition(self.domain)
+        self.check_domain_ctnr()
         self.check_for_delegation()
         if self.rdtype != 'CNAME':
             self.check_for_cname()
 
     def delete(self, *args, **kwargs):
-        self.schedule_rebuild_check()
+        self.schedule_zone_rebuild()
 
         from cyder.cydns.utils import prune_tree
         call_prune_tree = kwargs.pop('call_prune_tree', True)
@@ -149,13 +181,10 @@ class CydnsRecord(BaseModel, ViewMixin, DisplayMixin, ObjectUrlMixin):
             prune_tree(objs_domain)
 
     def save(self, *args, **kwargs):
-        self.fqdn_kwargs_check(kwargs)
-        self.full_clean()
-
         if self.pk:
             # We need to get the domain from the db. If it's not our current
             # domain, call prune_tree on the domain in the db later.
-            db_domain = self.__class__.objects.get(pk=self.pk).domain
+            db_domain = self.reload().domain
             if self.domain == db_domain:
                 db_domain = None
         else:
@@ -164,70 +193,25 @@ class CydnsRecord(BaseModel, ViewMixin, DisplayMixin, ObjectUrlMixin):
         no_build = kwargs.pop("no_build", False)
         super(CydnsRecord, self).save(*args, **kwargs)
 
-        if no_build:
-            pass
-        else:
-            self.schedule_rebuild_check()
+        if not no_build:
+            self.schedule_zone_rebuild()
 
         if db_domain:
             from cyder.cydns.utils import prune_tree
             prune_tree(db_domain)
 
-    def schedule_rebuild_check(self):
-        PTR = get_model('cyder', 'ptr')
-        if self.domain.soa and not isinstance(self, PTR):
-            # Mark the soa
+    def schedule_zone_rebuild(self):
+        if self.domain.soa:
             self.domain.soa.schedule_rebuild()
 
-    def fqdn_kwargs_check(self, kwargs):
-        fqdn = kwargs.pop('fqdn', None)
-        if fqdn:
-            if 'label' in kwargs and 'domain' in kwargs:
-                label, domain = kwargs['label'], kwargs['domain']
-                if fqdn != self.generate_fqdn(label, domain):
-                    raise ValidationError(DOMAIN_FQDN_CONFLICT)
-
-            elif 'label' in kwargs or 'domain' in kwargs:
-                raise ValidationError(DOMAIN_FQDN_CONFLICT)
-            else:
-                self.label_domain_from_fqdn()
-
-    def label_domain_from_fqdn(self):
-        validate_fqdn(self.fqdn)
-        try:
-            label, domain = self.fqdn.split('.', 1)
-        except ValueError:
-            label, domain = "", self.fqdn
-        domain = Domain.objects.get(name=domain)
-        self.label, self.domain = label, domain
-
-    def set_fqdn(self):
-        try:
-            Klass = type(self)
-            old = Klass.objects.get(pk=self.pk)
-        except Klass.DoesNotExist:
-            old = None
-
-        if (old and old.fqdn != self.fqdn and
-                self.generate_fqdn() != self.fqdn):
-            if old.label != self.label or old.domain != self.domain:
-                raise ValidationError(DOMAIN_FQDN_CONFLICT)
-            else:
-                self.label_domain_from_fqdn()
-
-        try:
-            self.fqdn = self.generate_fqdn()
-        except Domain.DoesNotExist:
-            if self.fqdn:
-                self.label_domain_from_fqdn()
-
-    def generate_fqdn(self, label=None, domain=None):
-        label = label or self.label
-        domain = domain or self.domain
-        if label == '':
-            return domain.name
-        else:
-            return "{0}.{1}".format(label, domain.name)
+    def check_domain_ctnr(self):
+        """
+        Validate name uses domain allowed in record's container.
+        """
+        if hasattr(self, 'ctnr') and hasattr(self, 'domain'):
+            if not self.domain.ctnr_set.filter(pk=self.ctnr.pk).exists():
+                raise ValidationError("Cannot create this record because its "
+                                      "ctnr does not match its domain.")
 
     def check_for_cname(self):
         """

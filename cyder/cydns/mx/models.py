@@ -1,23 +1,15 @@
+from gettext import gettext as _
+
 from django.db import models
 from django.core.exceptions import ValidationError
 
-from cyder.cydns.models import CydnsRecord
+from cyder.base.utils import transaction_atomic
 from cyder.cydns.cname.models import CNAME
-
-from cyder.cydns.validation import validate_mx_priority
-from cyder.cydns.validation import validate_fqdn
-from cyder.cydns.models import LabelDomainMixin
-
-# import reversion
-
-from gettext import gettext as _
+from cyder.cydns.models import CydnsRecord, LabelDomainMixin
+from cyder.cydns.validation import validate_fqdn, validate_mx_priority
 
 
 class MX(LabelDomainMixin, CydnsRecord):
-    """
-    >>> MX(label=label, domain=domain, server=server, priority=prio,
-    ...     ttl=tll)
-    """
     pretty_type = 'MX'
 
     id = models.AutoField(primary_key=True)
@@ -36,15 +28,10 @@ class MX(LabelDomainMixin, CydnsRecord):
     class Meta:
         app_label = 'cyder'
         db_table = 'mx'
-        # label and domain in CydnsRecord
-        unique_together = ('domain', 'label', 'server', 'priority')
+        unique_together = (('domain', 'label', 'server'),)
 
-    def __str__(self):
-        return "{0} {1} {3} {4} {5}".format(self.fqdn, self.ttl, 'IN', 'MX',
-                                            self.priority, self.server)
-
-    def __repr__(self):
-        return "<MX '{0}'>".format(str(self))
+    def __unicode__(self):
+        return u'{} MX {} {}'.format(self.fqdn, self.priority, self.server)
 
     def details(self):
         """For tables."""
@@ -73,8 +60,10 @@ class MX(LabelDomainMixin, CydnsRecord):
     def rdtype(self):
         return 'MX'
 
+    @transaction_atomic
     def save(self, *args, **kwargs):
         self.full_clean()
+
         super(MX, self).save(*args, **kwargs)
 
     def clean(self, *args, **kwargs):

@@ -37,13 +37,13 @@ table.table {
         padding: 5px 0;
     }
     thead {
-        background: $dark-blue;
+        background: $dark-gray;
         th {
             color: $white;
             a {
                 color: $white;
                 &:hover {
-                    color: $teal;
+                    text-decoration: underline
                 }
             }
         }
@@ -60,12 +60,11 @@ table.table {
             }
             &:hover {
                 background: darken($white, 10%);
-                cursor: pointer;
             }
             &:nth-child(even) {
-                background: $light-blue;
+                background: $light-gray;
                 &:hover {
-                    background: darken($light-blue, 10%);
+                    background: darken($light-gray, 10%);
                 }
             }
         }

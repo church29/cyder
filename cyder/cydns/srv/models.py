@@ -2,15 +2,16 @@ from gettext import gettext as _
 
 from django.db import models
 
+from cyder.base.utils import transaction_atomic
 from cyder.cydns.domain.models import Domain
+from cyder.cydns.models import CydnsRecord, LabelDomainUtilsMixin
 from cyder.cydns.validation import (
     validate_srv_label, validate_srv_port, validate_srv_priority,
     validate_srv_weight, validate_srv_name, validate_srv_target
 )
-from cyder.cydns.models import CydnsRecord
 
 
-class SRV(CydnsRecord):
+class SRV(CydnsRecord, LabelDomainUtilsMixin):
     """
     >>> SRV(label=label, domain=domain, target=target, port=port,
     ... priority=priority, weight=weight, ttl=ttl)
@@ -22,10 +23,10 @@ class SRV(CydnsRecord):
     label = models.CharField(max_length=63, blank=True,
                              validators=[validate_srv_label],
                              help_text="Short name of the FQDN")
-    domain = models.ForeignKey(Domain, null=False)
+    domain = models.ForeignKey(Domain, null=False,
+                               limit_choices_to={'is_reverse': False})
     fqdn = models.CharField(max_length=255, blank=True,
                             validators=[validate_srv_name])
-    # fqdn = label + domain.name <--- see set_fqdn
 
     target = models.CharField(max_length=100,
                               validators=[validate_srv_target], blank=True)
@@ -60,6 +61,9 @@ class SRV(CydnsRecord):
         ]
         return data
 
+    def __unicode__(self):
+        return u'{} SRV {}'.format(self.fqdn, self.target)
+
     @staticmethod
     def eg_metadata():
         """EditableGrid metadata."""
@@ -80,3 +84,9 @@ class SRV(CydnsRecord):
     @property
     def rdtype(self):
         return 'SRV'
+
+    @transaction_atomic
+    def save(self, *args, **kwargs):
+        self.full_clean()
+
+        super(SRV, self).save(*args, **kwargs)
