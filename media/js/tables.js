@@ -77,7 +77,8 @@ function enableBatchUpdate() {
             csrfmiddlewaretoken: csrfToken,
             range_type: $(this).val(),
         };
-        $.post("/dhcp/interface/get_ranges/", postData, function(data) {
+        var url = "/dhcp/interface/batch_update_get_ranges/";
+        $.post( url , postData, function( data ) {
             if (data.ranges) {
                 form = $('#batch-hidden-inner-form');
                 form.find('#id_range').empty();

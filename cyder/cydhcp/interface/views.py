@@ -6,6 +6,7 @@ from django.http import HttpResponse
 from cyder.cydhcp.interface.dynamic_intr.models import DynamicInterface
 from cyder.cydhcp.interface.static_intr.models import StaticInterface
 from cyder.cydhcp.range.range_usage import range_usage
+from cyder.cydhcp.network.utils import get_ranges
 import json
 
 
@@ -22,28 +23,22 @@ def is_last_interface(request):
     return HttpResponse(json.dumps({'last_interface': last_interface}))
 
 
-#redundant use other get_ranges
-def get_ranges(request):
+def batch_update_get_ranges(request):
     if not request.POST:
         return redirect(request.META.get('HTTP_REFERER', ''))
-
-    Range = get_model('cyder', 'range')
+    ranges = []
     ctnr = request.session['ctnr']
     range_type = request.POST.get('range_type', None)
-    ranges = []
     if range_type:
-        if ctnr.name == 'global':
-            ranges_qs = Range.objects.filter(range_type=range_type[:2])
-        else:
-            ranges_qs = Range.objects.filter(
-                ctnr=ctnr, range_type=range_type[:2])
-
-        for rng in ranges_qs:
-            ranges.append([rng.id, rng.__str__()])
-        return HttpResponse(json.dumps({'ranges': ranges}))
-
+        range_type = [range_type[:2]]
+        range_qs = get_ranges([], ctnr, range_type, all_ranges=True)
     else:
-        return HttpResponse(json.dumps({'error': True}))
+        range_qs = get_ranges([], ctnr, all_ranges=True)
+
+    for n, rng in enumerate(range_qs):
+        ranges.append([rng.id, rng.__str__()])
+
+    return HttpResponse(json.dumps({'ranges': ranges}))
 
 
 #refactor
