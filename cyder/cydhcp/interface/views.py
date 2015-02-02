@@ -41,16 +41,50 @@ def batch_update_get_ranges(request):
     return HttpResponse(json.dumps({'ranges': ranges}))
 
 
-#refactor
+def batch_update_same_type(rng, start_lower, intr):
+    if rng.range_type == 'st':
+        if ip:
+            start_lower = ip._ip + 1
+
+        ip = rng.get_next_ip(start_lower=start_lower)
+
+    if 'static' in intr_type:
+        intr.ip_str = str(ip)
+        intr.ip_type = rng.ip_type
+    else:
+        intr.range = rng
+
+    return intr
+
+
+
+def batch_update_different_type(rng, start_lower, intr):
+    if rng.range_type == 'st':
+        if ip:
+            start_lower = ip._ip + 1
+
+        ip = rng.get_next_ip(start_lower=start_lower)
+
+    new_intr_type = 'staticdynamicinterface'.replace(
+        intr_type, '')
+    NewInterface = get_model('cyder', new_intr_type)
+    kwargs = {'mac': intr.mac, 'dhcp_enabled': intr.dhcp_enabled,
+              'ctnr': intr.ctnr, 'workgroup': intr.workgroup,
+              'system': intr.system}
+    if 'static' in new_intr_type:
+        label = '{0}-{1}'.format(intr.system.name, intr.mac)
+        kwargs.update({'ip_str': str(ip), 'ip_type': rng.ip_type,
+                       'dns_enabled': True, 'domain': rng.domain,
+                       'label': label})
+    else:
+        kwargs.update({'range': rng})
+
+    return NewInterface(**kwargs)
+
+
 def batch_update(request):
     if not request.POST:
         return redirect(request.META.get('HTTP_REFERER', ''))
-
-    success = True
-    ip = None
-    start_lower = None
-    intr_type = ('').join(request.POST['interface_type'].split()[:-1])
-    new_intrs = []
 
     for field in ['range', 'range_type', 'interfaces']:
         if not request.POST.get(field, None):
@@ -66,6 +100,11 @@ def batch_update(request):
         return HttpResponse(json.dumps({
             'error': 'That range does not exist'}))
 
+    success = True
+    ip = None
+    start_lower = None
+    intr_type = ('').join(request.POST['interface_type'].split()[:-1])
+    new_intrs = []
     same_type = intr_type[:2] == rng.range_type
     Interface = get_model('cyder', intr_type + 'interface')
     interfaces = request.POST['interfaces'].split(',')
@@ -79,6 +118,7 @@ def batch_update(request):
             return HttpResponse(json.dumps({
                 'error': 'Range does not have enough space for selected '
                 'interfaces'}))
+
     for intr in interface_qs:
         if rng.range_type == 'st':
             if ip:
