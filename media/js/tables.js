@@ -20,7 +20,6 @@ function cleanTables() {
         }
         $td.text( $td.text().trim() );
     });
-
 }
 
 
@@ -116,17 +115,22 @@ function enableBatchUpdate() {
             csrfmiddlewaretoken: csrfToken,
             site: site_id,
         };
-        $.post("/dhcp/interface/batch_update/", postData, function(data) {
+        $.ajax({
+            type: 'POST',
+            url: '/dhcp/interface/batch_update/',
+            data: postData,
+            dataType: 'json',
+            beforesend: function() {
+                $('.error').remove();
+            },
+        }).done( function( data ) {
             if (data.success) {
                 location.reload();
             }
             if (data.error) {
-                if (form.find('#error').length) {
-                    form.find('#error').remove();
-                }
-                form.append('<p id="error"><font color="red">' + data.error + '</font></p>');
+                form.append('<p class="error">' + data.error + '</font></p>');
             }
-        }, 'json');
+        });
     });
 }
 
