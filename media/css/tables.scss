@@ -34,6 +34,7 @@ table.table {
         top: 2px;
     }
     td, th {
+        vertical-align: middle;
         padding: 5px 0;
     }
     thead {
@@ -125,4 +126,9 @@ table {
 .editable-grid {
     float: right;
     margin-right: 1.5%;
+}
+
+#selectAll {
+    margin-left: 5px;
+    vertical-align: middle;
 }
