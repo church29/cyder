@@ -41,13 +41,7 @@ def batch_update_get_ranges(request):
     return HttpResponse(json.dumps({'ranges': ranges}))
 
 
-def batch_update_same_type(rng, start_lower, intr):
-    if rng.range_type == 'st':
-        if ip:
-            start_lower = ip._ip + 1
-
-        ip = rng.get_next_ip(start_lower=start_lower)
-
+def batch_update_same_type(rng, ip, intr, intr_type):
     if 'static' in intr_type:
         intr.ip_str = str(ip)
         intr.ip_type = rng.ip_type
@@ -58,13 +52,7 @@ def batch_update_same_type(rng, start_lower, intr):
 
 
 
-def batch_update_different_type(rng, start_lower, intr):
-    if rng.range_type == 'st':
-        if ip:
-            start_lower = ip._ip + 1
-
-        ip = rng.get_next_ip(start_lower=start_lower)
-
+def batch_update_different_type(rng, ip, intr, intr_type):
     new_intr_type = 'staticdynamicinterface'.replace(
         intr_type, '')
     NewInterface = get_model('cyder', new_intr_type)
@@ -127,30 +115,10 @@ def batch_update(request):
             ip = rng.get_next_ip(start_lower=start_lower)
 
         if same_type:
-            if 'static' in intr_type:
-                intr.ip_str = str(ip)
-                intr.ip_type = rng.ip_type
-            else:
-                intr.range = rng
-
-            new_intr = intr
+            new_intr = batch_update_same_type(rng, ip, intr, intr_type)
 
         else:
-            new_intr_type = 'staticdynamicinterface'.replace(
-                intr_type, '')
-            NewInterface = get_model('cyder', new_intr_type)
-            kwargs = {'mac': intr.mac, 'dhcp_enabled': intr.dhcp_enabled,
-                      'ctnr': intr.ctnr, 'workgroup': intr.workgroup,
-                      'system': intr.system}
-            if 'static' in new_intr_type:
-                label = '{0}-{1}'.format(intr.system.name, intr.mac)
-                kwargs.update({'ip_str': str(ip), 'ip_type': rng.ip_type,
-                               'dns_enabled': True, 'domain': rng.domain,
-                               'label': label})
-            else:
-                kwargs.update({'range': rng})
-
-            new_intr = NewInterface(**kwargs)
+            new_intr = batch_update_different_type(rng, ip, intr, intr_type)
 
         try:
             intr.full_clean()
@@ -158,6 +126,7 @@ def batch_update(request):
         except ValidationError as e:
             return HttpResponse(json.dumps({
                 'error': 'Batch update was unsuccessful: {0}'.format(str(e))}))
+
     if same_type:
         for intr in new_intrs:
             intr.save()
@@ -167,6 +136,7 @@ def batch_update(request):
                 intr.save()
             except ValidationError as e:
                 success = False
+                break
 
         if success:
             interface_qs.delete()
