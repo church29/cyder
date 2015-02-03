@@ -120,12 +120,7 @@ def batch_update(request):
         else:
             new_intr = batch_update_different_type(rng, ip, intr, intr_type)
 
-        try:
-            intr.full_clean()
-            new_intrs.append(new_intr)
-        except ValidationError as e:
-            return HttpResponse(json.dumps({
-                'error': 'Batch update was unsuccessful: {0}'.format(str(e))}))
+        new_intrs.append(new_intr)
 
     if same_type:
         for intr in new_intrs:
