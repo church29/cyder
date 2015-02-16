@@ -46,7 +46,12 @@ function appendSelectAllCheckBox() {
 function appendCheckBoxesToRows() {
     $('#egtable').find( 'tbody' ).find( 'tr' ).each( function ( i, tr ) {
         var $id = $(tr).attr('data-url').split('/')[3];
-        $(tr).append('<td><input type="checkbox" id="' + $id + '" name="interfaceCheck" /></td>');
+        var $td = $('<td>').append( $('<input>')
+            .attr( 'type', 'checkbox' )
+            .attr( 'name', 'interfaceCheck' )
+            .attr( 'class', 'batch-update-checkbox' )
+            .attr( 'id', $id ) );
+        $(tr).append($td);
     });
 }
 
