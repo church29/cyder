@@ -29,12 +29,6 @@
   {% if obj_type_perm %}
     {% if page_obj and has_attr(page_obj[0], 'eg_metadata') %}
       <div class="editable-grid">
-        {% if pretty_obj_type in ["static interface", "dynamic interface"] %}
-          <form id="enable-batch-update">
-            <input type="checkbox" name="batch" id="enable-batch-check">
-            <label for="enable-batch-check">Enter batch update mode</label>
-          </form>
-        {% endif %}
         <span id="eg" data-metadata="{{ page_obj[0].eg_metadata()|to_json }}"></span>
         <form id="enable-eg">
           <input type="checkbox" name="eg" id="enable-eg-check">
@@ -46,6 +40,14 @@
             Exit spreadsheet mode
           </a>
         </div>
+      </div>
+      <div class="batch-update">
+        {% if pretty_obj_type in ["static interface", "dynamic interface"] %}
+          <form id="enable-batch-update">
+            <input type="checkbox" name="batch" id="enable-batch-check">
+            <label for="enable-batch-check">Enter batch update mode</label>
+          </form>
+        {% endif %}
       </div>
     {% endif %}
   {% endif %}

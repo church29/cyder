@@ -124,10 +124,15 @@ table {
     }
 }
 .editable-grid {
+    clear: both;
     float: right;
-    margin-right: 1.5%;
+    margin-right: 17px;
 }
-
+.batch-update {
+    clear: both;
+    float: right;
+    margin-right: 10px;
+}
 #selectAll {
     margin-left: 5px;
     vertical-align: middle;

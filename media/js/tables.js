@@ -50,11 +50,21 @@ function appendCheckBoxesToRows() {
     });
 }
 
+function addBatchUpdateExit() {
+    var a = $('<a>')
+        .attr( 'href', window.location.href )
+        .text( 'Exit batch update mode' );
+    $('.batch-update').append( a );
+
+}
+
 
 function enableBatchUpdate() {
     var csrfToken = $('#view-metadata').attr( 'data-csrfToken' );
     cleanTables();
     removeEditableGrid();
+    removeBatchUpdate();
+    addBatchUpdateExit();
     appendSelectAllCheckBox();
     appendCheckBoxesToRows();
     $('#system_create').remove();
