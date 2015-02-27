@@ -151,7 +151,9 @@ class UsabilityFormMixin(object):
         if ctnr.name != "global":
             if 'ctnr' not in self.initial:
                 self.fields['ctnr'].initial = request.session['ctnr']
-            self.fields['ctnr'].widget = HiddenInput()
+            #IE has an issue with this hidden input -- see #860
+            if 'MSIE' not in request.META['HTTP_USER_AGENT']:
+                self.fields['ctnr'].widget = HiddenInput()
 
     def make_usable(self, request):
         self.autoselect_system()
