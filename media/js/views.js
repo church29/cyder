@@ -165,4 +165,64 @@ $(document).ready( function() {
             }
         });
     });
+
+    $( document ).on( 'mousemove', 'thead th', function(e) {
+        if( is_inner_border( this, e ) ) {
+            $(this).css('cursor', 'pointer');
+        } else {
+            $(this).css('cursor', 'default');
+        }
+    });
+
+    $( document ).on( 'mousedown', 'thead th', function(e) {
+        $( document ).on( 'selectstart dragstart', '*', function(e) {
+            e.preventDefault();
+        });
+        var xCoord = e.pageX;
+        var sel = '.' + $(this).attr('class');
+        var width = $(sel).width();
+        var pos = $(this).offset();
+        var isLeftSide = xCoord - pos.left < 5;
+        if( !is_inner_border( this, e ) ) {
+            return false;
+        }
+            $( document ).on( 'mousemove', '*', function(e) {
+                var xDist = e.pageX - xCoord;
+                if( isLeftSide ) {
+                    var newWidth = width - xDist > 0 ? width - xDist: width;
+                } else {
+                    var newWidth = width + xDist > 0 ? width + xDist: width;
+                }
+                $(sel).width( newWidth );
+            });
+        $(document).mouseup(function(e) {
+            $(this).unbind( 'mousemove dragstart mouseup selectstart' );
+        });
+    });
+
+    function is_inner_border( column, e ) {
+        var xCoord = e.pageX;
+        var sel = '.' + $(column).attr('class');
+        ////////////////////////////////
+        var colPos = $(column).offset();
+        var colWidth = $(sel).width();
+        ////////////////////////////////
+        var table = $(column).closest('table');
+        var tablePos = $(table).offset();
+        var tableWidth = $(table).width();
+        ////////////////////////////////
+        var isLeftSideOfTable = xCoord - tablePos.left < 10;
+        var isRightSideOfTable = tablePos.left + tableWidth - xCoord < 10;
+        var isLeftSideOfColumn = xCoord - colPos.left < 5;
+        var isRightSideOfColumn = colPos.left + colWidth - xCoord < 5;
+        ////////////////////////////////
+        if (isLeftSideOfTable || isRightSideOfTable) {
+            return false;
+        }
+        if (isLeftSideOfColumn || isRightSideOfColumn) {
+            return true;
+        }
+        return false;
+    }
 });
+
